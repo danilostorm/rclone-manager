@@ -1,0 +1,298 @@
+ar do último bloco confirmado pelo Google.
++</div>
++
++{% if not writable %}
++<div class="notice warn" style="margin-bottom:16px"><strong>Nenhuma conta com escrita.</strong> Abra uma conta e use <strong>Habilitar cópias para esta conta</strong>. Essa mesma permissão é usada para Upload; os mounts continuam read-only.</div>
++{% endif %}
++
++{% if quota_rows %}
++<div class="card quota-card" style="margin-bottom:16px">
++  <div class="section-title"><h2>Cota de cópia/upload · estimativa 24h</h2><span class="badge stopped">Referência {{ '%.0f'|format(quota_gb) }} GB</span></div>
++  <div class="quota-grid">
++  {% for q in quota_rows %}
++    <div class="quota-item"><div><strong>{{ q.slug }}</strong>{% if q.email %}<div class="muted">{{ q.email }}</div>{% endif %}</div><div class="progress"><span style="width:{{ '%.1f'|format(q.pct) }}%"></span></div><div><strong>{{ '%.1f'|format(q.used / 1000 / 1000 / 1000) }} GB</strong> registrados pelo Manager <span class="muted">· {{ '%.1f'|format(q.remaining / 1000 / 1000 / 1000) }} GB restantes estimados</span></div></div>
++  {% endfor %}
++  </div>
++</div>
++{% endif %}
++
++<div class="grid upload-grid">
++  <div class="card span-5">
++    <div class="section-title"><h2>1. Destino</h2><span class="badge mounted">Escrita</span></div>
++    <div class="field"><label>Google Drive</label><select class="select" id="uploadDestination">{% for a in writable %}<option value="{{ a.slug }}">{{ a.slug }}{% if a.email %} · {{ a.email }}{% endif %}</option>{% endfor %}</select></div>
++    <div class="browserbar"><button class="btn small" type="button" id="uploadDestUp">↑ Voltar</button><div class="path mono" id="uploadDestPath">/</div><button class="btn small" type="button" id="uploadDestRefresh">Atualizar</button></div>
++    <div class="browser-tools">
++      <div class="browser-search"><input class="input" id="uploadDestSearch" placeholder="Buscar pasta no destino..."><button class="btn small" type="button" id="uploadDestSearchBtn">Buscar</button><button class="btn small" type="button" id="uploadDestClearSearch">Limpar</button></div>
++      <div class="actions"><button class="btn small primary" type="button" id="uploadDestNewFolder">＋ Criar pasta</button></div>
++    </div>
++    <div class="filebrowser upload-browser" id="uploadDestBrowser">{% if writable %}<div class="empty">Carregando...</div>{% else %}<div class="empty">Nenhuma conta com escrita.</div>{% endif %}</div>
++    <div class="notice" style="margin-top:12px">A pasta aberta será o destino dos arquivos. Pastas existentes dentro da seleção são criadas automaticamente quando necessário.</div>
++  </div>
++
++  <div class="card span-7">
++    <div class="section-title"><h2>2. Arquivos do computador</h2><span class="badge stopped" id="uploadSelectionBadge">0 arquivos</span></div>
++    <div class="upload-drop" id="uploadDropZone" tabindex="0">
++      <div class="upload-drop-icon">⇧</div><strong>Arraste arquivos para cá</strong><span>ou escolha arquivos / uma pasta inteira</span>
++      <div class="actions"><button class="btn primary" type="button" id="uploadChooseFiles">＋ Arquivos</button><button class="btn" type="button" id="uploadChooseFolder">📁 Pasta inteira</button></div>
++      <input type="file" id="uploadFileInput" multiple hidden>
++      <input type="file" id="uploadFolderInput" multiple webkitdirectory directory hidden>
++    </div>
++
++    <div class="form-grid upload-options" style="margin-top:14px">
++      <div class="field"><label>Se já existir arquivo com o mesmo nome</label><select class="select" id="uploadConflict"><option value="replace">Substituir</option><option value="rename">Manter os dois (renomear novo)</option><option value="skip">Ignorar o existente</option></select></div>
++      <div class="field"><label>Uploads simultâneos</label><select class="select" id="uploadParallel"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select></div>
++      <div class="field"><label>Tamanho de cada bloco</label><select class="select" id="uploadChunk"><option value="8">8 MiB</option><option value="16" selected>16 MiB</option><option value="32">32 MiB</option><option value="64">64 MiB</option></select></div>
++      <div class="field"><label>Estrutura de pastas</label><label class="checkline"><input type="checkbox" id="uploadPreserveTree" checked> Preservar subpastas da seleção</label></div>
++    </div>
++
++    <div class="upload-summary" style="margin-top:14px"><div><strong id="uploadTotalSize">0 B</strong><span class="muted"> selecionados</span></div><div class="progress"><span id="uploadTotalBar" style="width:0%"></span></div><div class="muted" id="uploadTotalText">0%</div></div>
++    <div class="actions" style="margin-top:12px"><button class="btn primary" type="button" id="uploadStart" disabled>⇧ Iniciar upload</button><button class="btn" type="button" id="uploadPause" disabled>Pausar</button><button class="btn danger" type="button" id="uploadClearQueue">Limpar fila</button></div>
++    <div class="upload-queue" id="uploadQueue"><div class="empty">Nenhum arquivo selecionado.</div></div>
++  </div>
++</div>
++
++<div class="card" style="margin-top:16px">
++  <div class="section-title"><div><h2>Histórico de uploads</h2><div class="muted">Uploads interrompidos podem ser retomados selecionando novamente o mesmo arquivo/pasta.</div></div></div>
++  <div class="tablewrap"><table class="table" id="uploadHistory"><thead><tr><th>#</th><th>Arquivo → Drive</th><th>Status</th><th>Progresso</th><th>Ações</th></tr></thead><tbody>
++  {% for j in jobs %}
++    <tr data-upload-job="{{ j.id }}"><td>{{ j.id }}</td><td><strong>{{ j.file_name }}</strong> → <strong>{{ j.destination_slug }}</strong><div class="muted mono">/{{ j.final_path or (j.destination_path ~ '/' ~ j.relative_path)|trim('/') }}</div><div class="muted">{{ '%.2f'|format((j.size_bytes or 0) / 1024 / 1024 / 1024) }} GiB</div></td><td><span class="badge {{ 'mounted' if j.status=='completed' else 'starting' if j.status in ['uploading','ready','queued'] else 'waiting' if j.status=='waiting_quota' else 'error' if j.status=='error' else 'stopped' }} upload-status">{{ j.status }}</span>{% if j.last_error %}<div class="muted job-error upload-error">{{ j.last_error }}</div>{% endif %}</td><td><div class="progress"><span style="width:{{ j.progress }}%"></span></div><div class="muted upload-progress">{{ '%.1f'|format(j.progress) }}% · {{ j.uploaded_bytes|default(0) }} / {{ j.size_bytes|default(0) }} bytes</div></td><td><div class="actions">{% if j.status not in ['completed','skipped','cancelled'] %}<form method="post" action="{{ url_for('upload_cancel', job_id=j.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger" type="submit">Cancelar</button></form>{% endif %}<form method="post" action="{{ url_for('upload_delete', job_id=j.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Excluir histórico</button></form></div></td></tr>
++  {% else %}<tr><td colspan="5"><div class="empty">Nenhum upload ainda.</div></td></tr>{% endfor %}
++  </tbody></table></div>
++</div>
++{% endblock %}
++{% block scripts %}
++<script>window.RCLONE_UPLOAD_PAGE=true;window.RCLONE_CSRF={{ csrf_token()|tojson }};</script>
++{% endblock %}
+diff --git a/mnt/data/patchgen/new/z/app/uploads.py b/app/uploads.py
+new file mode 100644
+index 0000000..db2bf9d
+--- /dev/null
++++ b/app/uploads.py
+@@ -0,0 +1,452 @@
++import configparser
++import json
++import os
++import re
++import threading
++from datetime import datetime, timedelta, timezone
++from pathlib import PurePosixPath
++
++import requests
++
++from db import (
++    add_transfer_usage,
++    create_upload_job,
++    delete_upload_job,
++    get_account,
++    get_upload_job,
++    list_upload_jobs,
++    update_upload_job,
++    utcnow,
++)
++from oauth_google import get_valid_access_token
++from utils import config_path
++
++DRIVE_API = "https://www.googleapis.com/drive/v3"
++DRIVE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3"
++FOLDER_MIME = "application/vnd.google-apps.folder"
++SESSION_RANGE_RE = re.compile(r"bytes=0-(\d+)")
++
++
++def _safe_path(value):
++    value = (value or "").replace("\\", "/").strip().strip("/")
++    parts = []
++    for raw in value.split("/"):
++        if raw in {"", "."}:
++            continue
++        if raw == ".." or "\x00" in raw:
++            raise ValueError("Caminho inválido")
++        parts.append(raw)
++    return "/".join(parts)
++
++
++def _safe_name(value):
++    value = str(value or "").strip()
++    if not value or value in {".", ".."} or "/" in value or "\\" in value or "\x00" in value:
++        raise ValueError("Nome de arquivo inválido")
++    if len(value) > 255:
++        raise ValueError("Nome de arquivo muito longo")
++    return value
++
++
++def _join(*parts):
++    clean = [_safe_path(p) for p in parts if p]
++    return "/".join(p for p in clean if p)
++
++
++def _escape_q(value):
++    return str(value).replace("\\", "\\\\").replace("'", "\\'")
++
++
++def _cfg_root_folder(slug):
++    account = get_account(slug) or {}
++    if account.get("root_folder_id"):
++        return str(account["root_folder_id"]).strip()
++    path = config_path(slug)
++    if path.exists():
++        cfg = configparser.RawConfigParser()
++        cfg.read(path)
++        if slug in cfg and cfg[slug].get("root_folder_id"):
++            return cfg[slug].get("root_folder_id").strip()
++    return "root"
++
++
++def _headers(slug):
++    return {"Authorization": f"Bearer {get_valid_access_token(slug)}"}
++
++
++def _request_json(method, url, slug, *, params=None, json_body=None, timeout=45):
++    headers = _headers(slug)
++    r = requests.request(method, url, headers=headers, params=params, json=json_body, timeout=timeout)
++    if r.status_code == 401:
++        # Force one refresh attempt if the provider rejected the cached token.
++        headers = {"Authorization": f"Bearer {get_valid_access_token(slug, force_refresh=True)}"}
++        r = requests.request(method, url, headers=headers, params=params, json=json_body, timeout=timeout)
++    if not r.ok:
++        detail = ""
++        try:
++            payload = r.json()
++            detail = payload.get("error", {}).get("message") or json.dumps(payload, ensure_ascii=False)
++        except Exception:
++            detail = r.text
++        raise RuntimeError(f"Google Drive API HTTP {r.status_code}: {(detail or 'erro desconhecido')[:1000]}")
++    return r.json() if r.content else {}
++
++
++def _find_children(slug, parent_id, name):
++    q = f"'{_escape_q(parent_id)}' in parents and name = '{_escape_q(name)}' and trashed = false"
++    data = _request_json(
++        "GET",
++        f"{DRIVE_API}/files",
++        slug,
++        params={
++            "q": q,
++            "fields": "files(id,name,mimeType,size,modifiedTime)",
++            "pageSize": 100,
++            "spaces": "drive",
++            "supportsAllDrives": "true",
++            "includeItemsFromAllDrives": "true",
++        },
++    )
++    return data.get("files", [])
++
++
++def _ensure_folder(slug, parent_id, name):
++    for item in _find_children(slug, parent_id, name):
++        if item.get("mimeType") == FOLDER_MIME:
++            return item["id"]
++    data = _request_json(
++        "POST",
++        f"{DRIVE_API}/files",
++        slug,
++        params={"supportsAllDrives": "true", "fields": "id,name"},
++        json_body={"name": name, "mimeType": FOLDER_MIME, "parents": [parent_id]},
++    )
++    return data["id"]
++
++
++class UploadManager:
++    """Chunked browser -> Google Drive resumable uploader.
++
++    Files never need to be stored as complete local files by Rclone Manager.
++    The browser sends bounded chunks and each chunk is immediately forwarded to
++    Google's resumable upload endpoint. The session URI/offset are persisted so
++    the same file can be selected again and resumed after a restart.
++    """
++
++    def __init__(self):
++        self.lock = threading.RLock()
++        self.folder_cache = {}
++        self.cancelled = set()
++
++    def _require_writable(self, slug):
++        account = get_account(slug)
++        if not account:
++            raise RuntimeError("Conta não encontrada")
++        if account.get("access_scope") != "readwrite":
++            raise PermissionError(f"A conta {slug} precisa de permissão de escrita para receber uploads.")
++        return account
++
++    def _folder_id(self, slug, path):
++        path = _safe_path(path)
++        key = (slug, path)
++        with self.lock:
++            if key in self.folder_cache:
++                return self.folder_cache[key]
++        parent = _cfg_root_folder(slug)
++        built = ""
++        for part in [p for p in path.split("/") if p]:
++            built = _join(built, part)
++            cache_key = (slug, built)
++            with self.lock:
++                cached = self.folder_cache.get(cache_key)
++            if cached:
++                parent = cached
++                continue
++            parent = _ensure_folder(slug, parent, part)
++            with self.lock:
++                self.folder_cache[cache_key] = parent
++        with self.lock:
++            self.folder_cache[key] = parent
++        return parent
++
++    def _existing_target(self, slug, parent_id, name):
++        rows = _find_children(slug, parent_id, name)
++        files = [x for x in rows if x.get("mimeType") != FOLDER_MIME]
++        return files[0] if files else None
++
++    def _unique_name(self, slug, parent_id, name):
++        if not _find_children(slug, parent_id, name):
++            return name
++        p = PurePosixPath(name)
++        suffix = "".join(p.suffixes)
++        stem = name[:-len(suffix)] if suffix else name
++        for n in range(1, 1001):
++            candidate = f"{stem} ({n}){suffix}"
++            if not _find_children(slug, parent_id, candidate):
++                return candidate
++        raise RuntimeError("Não foi possível gerar um nome livre no destino")
++
++    def _create_session(self, job):
++        slug = job["destination_slug"]
++        self._require_writable(slug)
++        relative = _safe_path(job.get("relative_path") or job.get("file_name"))
++        rel_parent = str(PurePosixPath(relative).parent)
++        rel_parent = "" if rel_parent == "." else _safe_path(rel_parent)
++        destination_dir = _join(job.get("destination_path", ""), rel_parent)
++        parent_id = self._folder_id(slug, destination_dir)
++        original_name = _safe_name(PurePosixPath(relative).name)
++        conflict = job.get("conflict_mode") or "replace"
++        existing = self._existing_target(slug, parent_id, original_name)
++        final_name = original_name
++        existing_id = None
++
++        if existing:
++            if conflict == "skip":
++                update_upload_job(
++                    job["id"], status="skipped", progress=100.0,
++                    uploaded_bytes=int(job.get("size_bytes") or 0),
++                    final_path=_join(destination_dir, original_name),
++                    google_file_id=existing.get("id", ""),
++                    session_url="", finished_at=utcnow(), last_error="Arquivo já existe; ignorado conforme a opção selecionada.",
++                )
++                return None
++            if conflict == "rename":
++                final_name = self._unique_name(slug, parent_id, original_name)
++            else:
++                existing_id = existing.get("id")
++
++        size = int(job.get("size_bytes") or 0)
++        mime = job.get("mime_type") or "application/octet-stream"
++        if size == 0:
++            if existing_id:
++                # A metadata-only PATCH would leave the old file contents intact.
++                # Use a zero-byte media upload so "replace" really truncates the file.
++                headers = _headers(slug)
++                headers.update({"Content-Type": mime, "Content-Length": "0"})
++                media_url = f"{DRIVE_UPLOAD_API}/files/{existing_id}"
++      
