@@ -1,0 +1,267 @@
+           params = {"uploadType": "media", "supportsAllDrives": "true", "fields": "id,name"}
++                r = requests.patch(media_url, headers=headers, params=params, data=b"", timeout=45)
++                if r.status_code == 401:
++                    headers["Authorization"] = f"Bearer {get_valid_access_token(slug, force_refresh=True)}"
++                    r = requests.patch(media_url, headers=headers, params=params, data=b"", timeout=45)
++                if r.status_code not in {200, 201}:
++                    raise RuntimeError(f"Não foi possível substituir o arquivo vazio no Google (HTTP {r.status_code}): {(r.text or '')[:800]}")
++                data = r.json() if r.content else {}
++                file_id = data.get("id") or existing_id
++            else:
++                data = _request_json("POST", f"{DRIVE_API}/files", slug, params={"supportsAllDrives": "true", "fields": "id,name"}, json_body={"name": final_name, "parents": [parent_id]})
++                file_id = data.get("id", "")
++            update_upload_job(job["id"], status="completed", progress=100.0, uploaded_bytes=0, final_path=_join(destination_dir, final_name), google_file_id=file_id, session_url="", finished_at=utcnow(), last_error="")
++            return None
++        headers = _headers(slug)
++        headers.update({
++            "Content-Type": "application/json; charset=UTF-8",
++            "X-Upload-Content-Type": mime,
++            "X-Upload-Content-Length": str(size),
++        })
++        if existing_id:
++            url = f"{DRIVE_UPLOAD_API}/files/{existing_id}"
++            method = "PATCH"
++            metadata = {"name": final_name}
++        else:
++            url = f"{DRIVE_UPLOAD_API}/files"
++            method = "POST"
++            metadata = {"name": final_name, "parents": [parent_id]}
++        r = requests.request(
++            method,
++            url,
++            headers=headers,
++            params={"uploadType": "resumable", "supportsAllDrives": "true"},
++            json=metadata,
++            timeout=45,
++        )
++        if r.status_code == 401:
++            headers["Authorization"] = f"Bearer {get_valid_access_token(slug, force_refresh=True)}"
++            r = requests.request(method, url, headers=headers, params={"uploadType": "resumable", "supportsAllDrives": "true"}, json=metadata, timeout=45)
++        if r.status_code not in {200, 201} or not r.headers.get("Location"):
++            raise RuntimeError(f"Não foi possível abrir sessão de upload no Google (HTTP {r.status_code}): {(r.text or '')[:800]}")
++        session_url = r.headers["Location"]
++        final_path = _join(destination_dir, final_name)
++        update_upload_job(job["id"], session_url=session_url, final_path=final_path, google_file_id=existing_id or "", status="ready", last_error="")
++        return session_url
++
++    def _query_session(self, job):
++        session_url = job.get("session_url") or ""
++        if not session_url:
++            return int(job.get("uploaded_bytes") or 0), False
++        slug = job["destination_slug"]
++        total = int(job.get("size_bytes") or 0)
++        try:
++            r = requests.put(
++                session_url,
++                headers={
++                    **_headers(slug),
++                    "Content-Length": "0",
++                    "Content-Range": f"bytes */{total}",
++                },
++                timeout=30,
++            )
++        except Exception:
++            return int(job.get("uploaded_bytes") or 0), False
++        if r.status_code in {200, 201}:
++            update_upload_job(job["id"], status="completed", progress=100.0, uploaded_bytes=total, session_url="", finished_at=utcnow(), last_error="")
++            return total, True
++        if r.status_code == 308:
++            m = SESSION_RANGE_RE.search(r.headers.get("Range", ""))
++            offset = int(m.group(1)) + 1 if m else 0
++            update_upload_job(job["id"], uploaded_bytes=offset, progress=(offset * 100.0 / total) if total else 0, status="ready", last_error="")
++            return offset, False
++        if r.status_code in {404, 410}:
++            update_upload_job(job["id"], session_url="", uploaded_bytes=0, progress=0.0, status="interrupted", last_error="Sessão do Google expirou; o arquivo será reiniciado do zero.")
++            return 0, False
++        return int(job.get("uploaded_bytes") or 0), False
++
++    def prepare(self, destination_slug, destination_path, relative_path, file_name, size_bytes, mime_type, conflict_mode, fingerprint):
++        self._require_writable(destination_slug)
++        destination_path = _safe_path(destination_path)
++        relative_path = _safe_path(relative_path or file_name)
++        file_name = _safe_name(file_name or PurePosixPath(relative_path).name)
++        size_bytes = int(size_bytes or 0)
++        if size_bytes < 0:
++            raise ValueError("Tamanho inválido")
++        if conflict_mode not in {"replace", "rename", "skip"}:
++            conflict_mode = "replace"
++        fingerprint = str(fingerprint or "")[:300]
++        job = None
++        if fingerprint:
++            for row in list_upload_jobs(300):
++                if (
++                    row.get("fingerprint") == fingerprint
++                    and row.get("destination_slug") == destination_slug
++                    and row.get("destination_path") == destination_path
++                    and row.get("relative_path") == relative_path
++                    and int(row.get("size_bytes") or 0) == size_bytes
++                    and row.get("status") not in {"completed", "skipped", "cancelled"}
++                ):
++                    job = row
++                    break
++        if not job:
++            job_id = create_upload_job(
++                destination_slug=destination_slug,
++                destination_path=destination_path,
++                relative_path=relative_path,
++                file_name=file_name,
++                size_bytes=size_bytes,
++                mime_type=mime_type or "application/octet-stream",
++                conflict_mode=conflict_mode,
++                fingerprint=fingerprint,
++            )
++            job = get_upload_job(job_id)
++        if job.get("session_url"):
++            self._query_session(job)
++            job = get_upload_job(job["id"])
++        if job.get("status") in {"completed", "skipped"}:
++            return job
++        if not job.get("session_url"):
++            try:
++                session = self._create_session(job)
++                job = get_upload_job(job["id"])
++                if session is None:
++                    return job
++            except Exception as exc:
++                update_upload_job(job["id"], status="error", last_error=str(exc), updated_at=utcnow())
++                raise
++        return get_upload_job(job["id"])
++
++    def put_chunk(self, job_id, start, data):
++        job = get_upload_job(job_id)
++        if not job:
++            raise KeyError("Upload não encontrado")
++        if job.get("status") in {"completed", "skipped", "cancelled"}:
++            return get_upload_job(job_id)
++        if job_id in self.cancelled:
++            update_upload_job(job_id, status="cancelled", session_url="", finished_at=utcnow(), last_error="Cancelado pelo usuário.")
++            return get_upload_job(job_id)
++        expected = int(job.get("uploaded_bytes") or 0)
++        start = int(start or 0)
++        if start != expected:
++            # Reconcile with Google before rejecting a resumed browser.
++            expected, done = self._query_session(job)
++            job = get_upload_job(job_id)
++            if done:
++                return job
++            if start != expected:
++                err = RuntimeError(f"OFFSET_MISMATCH:{expected}")
++                err.expected_offset = expected
++                raise err
++        if not job.get("session_url"):
++            self._create_session(job)
++            job = get_upload_job(job_id)
++        total = int(job.get("size_bytes") or 0)
++        if total == 0:
++            # Google resumable sessions accept an empty final PUT.
++            end = -1
++        else:
++            if not data:
++                raise ValueError("Chunk vazio")
++            end = start + len(data) - 1
++            if end >= total:
++                raise ValueError("Chunk ultrapassa o tamanho declarado")
++        slug = job["destination_slug"]
++        headers = {
++            **_headers(slug),
++            "Content-Type": job.get("mime_type") or "application/octet-stream",
++            "Content-Length": str(len(data)),
++            "Content-Range": f"bytes {start}-{end}/{total}" if total else "bytes */0",
++        }
++        update_upload_job(job_id, status="uploading", last_error="")
++        try:
++            r = requests.put(job["session_url"], headers=headers, data=data, timeout=180)
++        except Exception as exc:
++            update_upload_job(job_id, status="interrupted", last_error=f"Conexão interrompida: {exc}")
++            raise RuntimeError(f"Conexão com Google interrompida: {exc}")
++        if r.status_code in {200, 201}:
++            payload = {}
++            try:
++                payload = r.json()
++            except Exception:
++                pass
++            update_upload_job(
++                job_id,
++                status="completed",
++                progress=100.0,
++                uploaded_bytes=total,
++                session_url="",
++                google_file_id=payload.get("id") or job.get("google_file_id") or "",
++                finished_at=utcnow(),
++                last_error="",
++            )
++            add_transfer_usage(slug, job_id, total, kind="upload")
++            return get_upload_job(job_id)
++        if r.status_code == 308:
++            m = SESSION_RANGE_RE.search(r.headers.get("Range", ""))
++            offset = int(m.group(1)) + 1 if m else start + len(data)
++            update_upload_job(job_id, status="ready", uploaded_bytes=offset, progress=(offset * 100.0 / total) if total else 0, last_error="")
++            return get_upload_job(job_id)
++        if r.status_code in {404, 410}:
++            update_upload_job(job_id, status="interrupted", session_url="", uploaded_bytes=0, progress=0.0, last_error="Sessão de upload do Google expirou. Recomece este arquivo; os demais continuam preservados.")
++            err = RuntimeError("SESSION_EXPIRED:0")
++            err.expected_offset = 0
++            raise err
++        detail = (r.text or "")[:1200]
++        low = detail.lower()
++        waiting = r.status_code == 429 or (r.status_code == 403 and any(x in low for x in ["quota", "ratelimit", "rate limit", "limit exceeded", "userratelimitexceeded"]))
++        status = "waiting_quota" if waiting else "error"
++        update_upload_job(job_id, status=status, last_error=f"Google HTTP {r.status_code}: {detail}")
++        raise RuntimeError(f"Google HTTP {r.status_code}: {detail}")
++
++    def cancel(self, job_id):
++        job = get_upload_job(job_id)
++        if not job:
++            return False
++        with self.lock:
++            self.cancelled.add(job_id)
++        update_upload_job(job_id, status="cancelled", session_url="", finished_at=utcnow(), last_error="Cancelado pelo usuário.")
++        return True
++
++    def delete(self, job_id):
++        self.cancel(job_id)
++        delete_upload_job(job_id)
++
++
++uploads = UploadManager()
+diff --git a/desktop_main.py b/desktop_main.py
+index 6a20c33..ad2c70d 100755
+--- a/desktop_main.py
++++ b/desktop_main.py
+@@ -39,8 +39,14 @@ from waitress import serve  # noqa: E402
+ url = f"http://127.0.0.1:{port}"
+ 
+ 
++server_errors = []
++
+ def run_server():
+-    serve(app, host="127.0.0.1", port=port, threads=8, channel_timeout=120)
++    try:
++        serve(app, host="127.0.0.1", port=port, threads=8, channel_timeout=120)
++    except Exception as exc:
++        server_errors.append(exc)
++        print(f"Falha ao iniciar servidor local: {exc}", file=sys.stderr)
+ 
+ 
+ def wait_ready(timeout=15):
+@@ -48,7 +54,7 @@ def wait_ready(timeout=15):
+     deadline = time.time() + timeout
+     while time.time() < deadline:
+         try:
+-            with urllib.request.urlopen(url + "/health", timeout=1) as r:
++            with urllib.request.urlopen(url + "/api/health", timeout=1) as r:
+                 if r.status == 200:
+                     return True
+         except Exception:
+@@ -90,7 +96,10 @@ def main():
+     startup()
+     threading.Thread(target=run_server, daemon=True).start()
+     if not wait_ready():
+-        print("Rclone Manager não iniciou na porta local.", file=sys.stderr)
++        if server_errors:
++            print(f"Rclone Manager não iniciou: {server_errors[-1]}", file=sys.stderr)
++        else:
++            print(f"Rclone Manager não respondeu em {url}/api/health.", file=sys.stderr)
+         return 1
+     try:
+         run_gtk()
