@@ -43,11 +43,14 @@ jobs:
             BASE_VERSION="1.0.0"
             BASE_ZIP="dist/zorinos/rclone-manager-desktop-zorinos-v${BASE_VERSION}.zip"
             PATCH="desktop-release/patches/${VERSION}.patch"
+            PATCH_XZ_B64="${PATCH}.xz.b64"
             PATCH_TMP="/tmp/rclone-manager-zorinos-${VERSION}.patch"
 
             test -f "$BASE_ZIP"
             if [ -f "$PATCH" ]; then
               cp "$PATCH" "$PATCH_TMP"
+            elif [ -f "$PATCH_XZ_B64" ]; then
+              base64 -d "$PATCH_XZ_B64" | xz -d > "$PATCH_TMP"
             else
               PARTS=("${PATCH}.part-"*)
               test -e "${PARTS[0]}"
@@ -118,7 +121,7 @@ jobs:
           Depends: python3, python3-flask, python3-requests, python3-waitress, python3-gi, gir1.2-gtk-3.0, gir1.2-webkit2-4.1, rclone, fuse3, ca-certificates
           Description: Rclone Manager Desktop for ZorinOS
            Google Drive multi-account mounts, transfers, Shared with me browser,
-           uploads, checkpoints, quota estimation, backup/restore and local GTK/WebKit UI.
+           uploads, speedtest, checkpoints, quota estimation, backup/restore and local GTK/WebKit UI.
           CONTROL
 
           cat > "$PKG/DEBIAN/postinst" <<'POSTINST'
