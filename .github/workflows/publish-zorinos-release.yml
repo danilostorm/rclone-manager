@@ -31,10 +31,14 @@ jobs:
       - name: Verify and extract source
         shell: bash
         run: |
+          set -euo pipefail
           VERSION='${{ steps.version.outputs.version }}'
           ZIP="dist/zorinos/rclone-manager-desktop-zorinos-v${VERSION}.zip"
           test -f "$ZIP"
-          sha256sum -c "dist/zorinos/rclone-manager-desktop-zorinos-v${VERSION}.sha256"
+          (
+            cd dist/zorinos
+            sha256sum -c "rclone-manager-desktop-zorinos-v${VERSION}.sha256"
+          )
           rm -rf build-src package
           mkdir -p build-src
           unzip -q "$ZIP" -d build-src
@@ -84,13 +88,17 @@ jobs:
 
           chmod 755 "$PKG/DEBIAN/postinst" "$PKG/DEBIAN/prerm"
           dpkg-deb --build --root-owner-group "$PKG" "$DEB"
-          sha256sum "$DEB" > "${DEB}.sha256"
+          (
+            cd dist/zorinos
+            sha256sum "rclone-manager-desktop-zorinos_${VERSION}_all.deb" > "rclone-manager-desktop-zorinos_${VERSION}_all.deb.sha256"
+          )
 
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
+          set -euo pipefail
           VERSION='${{ steps.version.outputs.version }}'
           TAG='${{ steps.version.outputs.tag }}'
           ZIP="dist/zorinos/rclone-manager-desktop-zorinos-v${VERSION}.zip"
