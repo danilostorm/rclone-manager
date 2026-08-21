@@ -1,0 +1,1 @@
+Release source is stored in base64 chunks only when binary blob upload is unavailable. The workflow decodes and verifies SHA256 before building the .deb.
