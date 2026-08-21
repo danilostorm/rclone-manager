@@ -40,11 +40,14 @@ jobs:
           BASE_ZIP="dist/unraid/rclone-manager-unraid-v${BASE_VERSION}.zip"
           ZIP="dist/unraid/rclone-manager-unraid-v${VERSION}.zip"
           PATCH="unraid-release/patches/${VERSION}.patch"
+          PATCH_XZ_B64="${PATCH}.xz.b64"
           PATCH_TMP="/tmp/rclone-manager-unraid-${VERSION}.patch"
 
           test -f "$BASE_ZIP"
           if [ -f "$PATCH" ]; then
             cp "$PATCH" "$PATCH_TMP"
+          elif [ -f "$PATCH_XZ_B64" ]; then
+            base64 -d "$PATCH_XZ_B64" | xz -d > "$PATCH_TMP"
           else
             PARTS=("${PATCH}.part-"*)
             test -e "${PARTS[0]}"
