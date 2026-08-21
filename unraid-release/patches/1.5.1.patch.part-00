@@ -1,0 +1,443 @@
+diff --git a/Dockerfile b/Dockerfile
+index bd01ecb..7a1626f 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
+ COPY --from=rclonebin /usr/local/bin/rclone /usr/local/bin/rclone
+ 
+ LABEL org.opencontainers.image.title="Rclone Manager" \
+-      org.opencontainers.image.version="1.4.0"
++      org.opencontainers.image.version="1.5.1"
+ 
+ WORKDIR /app
+ COPY requirements.txt /app/requirements.txt
+diff --git a/MIGRATION.md b/MIGRATION.md
+index fc1cd21..a0c036e 100644
+--- a/MIGRATION.md
++++ b/MIGRATION.md
+@@ -1,38 +1,8 @@
+-# Migração para v1.4.0 Final
++# Migração para v1.5.1
+ 
+-Extraia os arquivos por cima de `/mnt/user/appdata/rclone-manager` e execute:
++A migração do banco é automática. A versão cria a tabela `upload_jobs` para manter histórico, sessão resumível e offset confirmado pelo Google Drive.
+ 
+-```bash
+-cd /mnt/user/appdata/rclone-manager
+-chmod +x *.sh scripts/*.sh
+-./update.sh
+-```
++Nenhuma conta, token ou mount existente precisa ser recriado. Preserve `.env`, `data/` e `cache/` durante o update.
+ 
+-## Banco
+-
+-A migração é automática. A v1.4.0 adiciona aos jobs de transferência:
+-
+-- `checkpoint_verified_at`
+-- `checkpoint_verify_result`
+-
+-As colunas anteriores de checkpoint, cota e histórico são preservadas.
+-
+-## Dados preservados
+-
+-- `.env`
+-- banco SQLite
+-- contas e tokens OAuth
+-- `rclone.conf`
+-- mounts
+-- cache
+-- histórico e checkpoints
+-
+-## Primeiro update para v1.4.0
+-
+-O novo `update.sh` passa a criar automaticamente:
+-
+-- backup pré-update em `./backups/`;
+-- tag Docker `local/rclone-manager-unraid:rollback` com a imagem anterior;
+-- `data/update-meta.json`.
+-
+-Esses recursos passam a valer para updates executados a partir desta versão.
++## 1.5.1
++Hotfix de layout do Centro de Upload: corrige as colunas 5/7 e o comportamento responsivo.
+diff --git a/README.md b/README.md
+index f431d89..eab19ee 100644
+--- a/README.md
++++ b/README.md
+@@ -1,77 +1,26 @@
+-# Rclone Manager v1.4.0 Final
++# Rclone Manager v1.5.1 Final
+ 
+-Versão final/estável do Rclone Manager para Unraid. Mantém múltiplas contas Google Drive montadas em `/mnt/remotes/<conta>` para Plex/Jellyfin e inclui Centro de Transferências entre Drives.
++Gerenciador de múltiplos Google Drives para Unraid, com mounts read-only, transferências entre contas e agora **Upload direto do computador para o Google Drive**.
+ 
+-## Destaques da v1.4.0 Final
++## Novidade da v1.5.1
+ 
+-### Confiabilidade
+-- Retry automático com backoff configurável, padrão `15,30,60,120` minutos.
+-- Retomada por checkpoint real: itens já concluídos não são reprocessados.
+-- Botão **Verificar destino** para conferir o checkpoint antes de retomar.
+-- Jobs interrompidos por reinício ficam marcados como `interrupted`.
++- novo menu **Upload** logo abaixo de Transferências;
++- upload de múltiplos arquivos e pasta inteira;
++- drag & drop;
++- escolha visual da conta e pasta de destino;
++- criação de pasta no destino;
++- blocos configuráveis de 8/16/32/64 MiB;
++- 1 a 4 uploads simultâneos;
++- sessões resumíveis do Google Drive;
++- ao selecionar novamente o mesmo arquivo, o Manager consulta o offset confirmado pelo Google e tenta retomar;
++- preservar estrutura de subpastas;
++- conflitos: substituir, renomear o novo ou ignorar;
++- histórico, progresso, cancelamento e cota estimada das últimas 24h;
++- o Manager trabalha por blocos: não precisa manter uma cópia completa do arquivo na pasta de dados da aplicação.
+ 
+-### Backup / Restore pela WebUI
+-Em **Sistema**:
+-- criar e baixar backup;
+-- listar e baixar backups salvos no servidor;
+-- excluir backups antigos;
+-- restaurar backup com validação de segurança;
+-- antes de restaurar, o Manager cria automaticamente um backup do estado atual.
++## Atualização no Unraid
+ 
+-O backup WebUI inclui banco de dados, configurações, contas OAuth e `rclone.conf`. Cache de mídia não é incluído.
+-
+-### Diagnóstico
+-A página **Sistema** verifica:
+-- `/dev/fuse`;
+-- propagação `shared/rshared` de `/mnt/remotes`;
+-- escrita em `/data` e `/cache`;
+-- integridade do SQLite;
+-- versão do rclone;
+-- configuração do OAuth;
+-- estado/configuração de cada Drive;
+-- no modo completo, faz teste real de acesso aos remotes.
+-
+-### Notificações
+-Configuração opcional em **Configurações**:
+-- Telegram;
+-- Discord Webhook;
+-- eventos: transferência concluída, erro e espera por cota.
+-
+-### Logs
+-- exportação `.txt` dos logs de mount;
+-- exportação `.txt` dos logs de transferência.
+-
+-### Dashboard
+-- status de cada conta;
+-- leitura/escrita OAuth;
+-- mount no Unraid;
+-- estimativa de uso nas últimas 24h para contas de destino.
+-
+-### Update / rollback
+-`./update.sh` agora:
+-1. cria backup pré-update;
+-2. preserva a imagem Docker anterior como `local/rclone-manager-unraid:rollback`;
+-3. constrói e sobe a nova versão;
+-4. registra os dados da atualização em `data/update-meta.json`.
+-
+-Se uma atualização futura quebrar o código:
+-
+-```bash
+-cd /mnt/user/appdata/rclone-manager
+-./rollback.sh
+-```
+-
+-O rollback volta somente o código/imagem. Para voltar também os dados, use um backup pela página **Sistema**.
+-
+-## Atualização a partir da v1.3.1
+-
+-Extraia o conteúdo do ZIP diretamente sobre:
+-
+-```text
+-/mnt/user/appdata/rclone-manager
+-```
+-
+-Preserve `.env`, `data/` e `cache/`. Depois:
++Extraia por cima de `/mnt/user/appdata/rclone-manager`, preservando `.env`, `data/` e `cache/`, e rode:
+ 
+ ```bash
+ cd /mnt/user/appdata/rclone-manager
+@@ -79,53 +28,4 @@ chmod +x *.sh scripts/*.sh
+ ./update.sh
+ ```
+ 
+-As migrações de banco são automáticas.
+-
+-## Plex / Jellyfin
+-
+-Recomendado:
+-
+-```text
+-Host Path: /mnt/remotes
+-Container Path: /cloud
+-Access Mode: Read Only - Slave
+-```
+-
+-O mount do Rclone Manager continua sempre `--read-only`, mesmo quando uma conta recebe OAuth de leitura/escrita para permitir cópias pelo painel.
+-
+-## Centro de Transferências
+-
+-- Meu Drive e Compartilhados comigo.
+-- Busca recursiva.
+-- Criar pasta, renomear, excluir e seleção múltipla em contas com escrita.
+-- Exclusão usa a lixeira do Google Drive.
+-- `--server-side-across-configs` para preferir cópia direta no Google.
+-- parada automática ao detectar limites de upload/download.
+-- checkpoint por item.
+-- retry automático por cota.
+-- medidor estimado de uso em 24h.
+-
+-## Segurança
+-
+-- login administrativo;
+-- CSRF;
+-- cookies HttpOnly/SameSite;
+-- tokens/configs em `/data` com permissões restritas;
+-- backup restore valida paths, tipos de arquivos e integridade do SQLite;
+-- Discord limitado a URLs oficiais de webhook;
+-- mount Plex/Jellyfin sempre read-only;
+-- não é montado Docker socket no container.
+-
+-## Estrutura persistente
+-
+-```text
+-/mnt/user/appdata/rclone-manager/
+-├── .env
+-├── data/
+-│   ├── rclone-manager.db
+-│   ├── accounts/<conta>/rclone.conf
+-│   ├── transfers/
+-│   └── backups/
+-├── cache/
+-└── docker-compose.yml
+-```
++Contas que recebem upload precisam estar autorizadas como **leitura/escrita**. Os mounts continuam read-only.
+diff --git a/VERSION b/VERSION
+index 88c5fb8..26ca594 100644
+--- a/VERSION
++++ b/VERSION
+@@ -1 +1 @@
+-1.4.0
++1.5.1
+diff --git a/app/app.py b/app/app.py
+index d210882..4ae20eb 100644
+--- a/app/app.py
++++ b/app/app.py
+@@ -37,9 +37,12 @@ from db import (
+     list_accounts,
+     create_transfer_job,
+     clear_finished_transfers,
++    clear_finished_uploads,
+     delete_transfer_job,
+     get_transfer_job,
+     list_transfer_jobs,
++    get_upload_job,
++    list_upload_jobs,
+     transfer_usage_24h,
+     prune_transfer_usage,
+     update_transfer_job,
+@@ -59,6 +62,7 @@ from transfers import (
+     search_remote,
+     transfers,
+ )
++from uploads import uploads
+ from oauth_google import (
+     build_auth_url,
+     drive_user,
+@@ -97,7 +101,7 @@ APP_PORT = int(os.environ.get("APP_PORT", "8787"))
+ ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
+ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "changeme")
+ APP_SECRET = os.environ.get("APP_SECRET", secrets.token_hex(32))
+-APP_VERSION = "1.4.0"
++APP_VERSION = "1.5.1"
+ 
+ app = Flask(__name__)
+ app.secret_key = APP_SECRET
+@@ -824,6 +828,116 @@ def account_logs(slug):
+     return render_template("logs.html", slug=slug, content=tail_file(log_path(slug), 500))
+ 
+ 
++
++@app.route("/uploads")
++def uploads_page():
++    accounts = list_accounts()
++    writable = [a for a in accounts if a.get("access_scope") == "readwrite"]
++    jobs = list_upload_jobs(150)
++    try:
++        quota_gb = max(1.0, float(get_setting("quota_reference_gb", "750") or 750))
++    except Exception:
++        quota_gb = 750.0
++    quota_limit = int(quota_gb * 1000 * 1000 * 1000)
++    quota_rows = []
++    for a in writable:
++        used = transfer_usage_24h(a["slug"])
++        quota_rows.append({
++            "slug": a["slug"],
++            "email": a.get("email") or "",
++            "used": used,
++            "limit": quota_limit,
++            "pct": min(100.0, (used * 100.0 / quota_limit) if quota_limit else 0.0),
++            "remaining": max(0, quota_limit - used),
++        })
++    return render_template("uploads.html", accounts=accounts, writable=writable, jobs=jobs, quota_rows=quota_rows, quota_gb=quota_gb)
++
++
++@app.route("/api/uploads/prepare", methods=["POST"])
++@require_csrf
++def api_upload_prepare():
++    payload = request.get_json(silent=True) or {}
++    slug = normalize_slug(payload.get("destination_slug", ""))
++    if not get_account(slug):
++        return jsonify({"ok": False, "error": "Conta de destino não encontrada"}), 404
++    try:
++        job = uploads.prepare(
++            destination_slug=slug,
++            destination_path=payload.get("destination_path", ""),
++            relative_path=payload.get("relative_path", ""),
++            file_name=payload.get("file_name", ""),
++            size_bytes=payload.get("size_bytes", 0),
++            mime_type=payload.get("mime_type", "application/octet-stream"),
++            conflict_mode=payload.get("conflict_mode", "replace"),
++            fingerprint=payload.get("fingerprint", ""),
++        )
++        return jsonify({"ok": True, "job": job})
++    except PermissionError as exc:
++        return jsonify({"ok": False, "error": str(exc)}), 403
++    except Exception as exc:
++        return jsonify({"ok": False, "error": str(exc)}), 400
++
++
++@app.route("/api/uploads/<int:job_id>/chunk", methods=["PUT"])
++@require_csrf
++def api_upload_chunk(job_id):
++    try:
++        content_length = int(request.content_length or 0)
++    except Exception:
++        content_length = 0
++    # The UI tops out at 64 MiB. Keep a small margin while protecting the
++    # local service against accidental giant request bodies.
++    if content_length > 70 * 1024 * 1024:
++        return jsonify({"ok": False, "error": "Chunk maior que 70 MiB"}), 413
++    try:
++        start = int(request.headers.get("X-Chunk-Start", "0") or 0)
++        data = request.get_data(cache=False)
++        job = uploads.put_chunk(job_id, start, data)
++        return jsonify({"ok": True, "job": job})
++    except KeyError as exc:
++        return jsonify({"ok": False, "error": str(exc)}), 404
++    except Exception as exc:
++        expected = getattr(exc, "expected_offset", None)
++        body = {"ok": False, "error": str(exc)}
++        if expected is not None:
++            body["expected_offset"] = int(expected)
++        code = 409 if expected is not None else 429 if "HTTP 429" in str(exc) else 400
++        return jsonify(body), code
++
++
++@app.route("/api/uploads")
++def api_uploads():
++    return jsonify(list_upload_jobs(150))
++
++
++@app.route("/uploads/<int:job_id>/cancel", methods=["POST"])
++@require_csrf
++def upload_cancel(job_id):
++    if not get_upload_job(job_id):
++        abort(404)
++    uploads.cancel(job_id)
++    flash(f"Upload #{job_id} cancelado.", "warning")
++    return redirect(url_for("uploads_page"))
++
++
++@app.route("/uploads/<int:job_id>/delete", methods=["POST"])
++@require_csrf
++def upload_delete(job_id):
++    if not get_upload_job(job_id):
++        abort(404)
++    uploads.delete(job_id)
++    flash(f"Histórico do upload #{job_id} removido. O arquivo já enviado ao Google Drive não é apagado.", "success")
++    return redirect(url_for("uploads_page"))
++
++
++@app.route("/uploads/clear", methods=["POST"])
++@require_csrf
++def upload_clear_finished():
++    clear_finished_uploads()
++    flash("Histórico de uploads finalizados limpo.", "success")
++    return redirect(url_for("uploads_page"))
++
++
+ @app.route("/transfers")
+ def transfers_page():
+     accounts = list_accounts()
+@@ -1061,7 +1175,7 @@ def transfer_logs(job_id):
+ @app.route("/settings/notifications/test", methods=["POST"])
+ @require_csrf
+ def notifications_test():
+-    ok, detail = send_notification("🔔 Rclone Manager", "Notificação de teste da v1.4.0 Final.")
++    ok, detail = send_notification("🔔 Rclone Manager", "Notificação de teste do Rclone Manager.")
+     flash(detail, "success" if ok else "danger")
+     return redirect(url_for("settings_get"))
+ 
+diff --git a/app/db.py b/app/db.py
+index 44a1d1d..38c7462 100644
+--- a/app/db.py
++++ b/app/db.py
+@@ -115,6 +115,30 @@ def init_db():
+             );
+             CREATE INDEX IF NOT EXISTS idx_transfer_usage_account_time
+                 ON transfer_usage(account_slug, recorded_at);
++
++            CREATE TABLE IF NOT EXISTS upload_jobs (
++                id INTEGER PRIMARY KEY AUTOINCREMENT,
++                destination_slug TEXT NOT NULL,
++                destination_path TEXT NOT NULL DEFAULT '',
++                relative_path TEXT NOT NULL,
++                final_path TEXT NOT NULL DEFAULT '',
++                file_name TEXT NOT NULL,
++                size_bytes INTEGER NOT NULL DEFAULT 0,
++                mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
++                conflict_mode TEXT NOT NULL DEFAULT 'replace',
++                fingerprint TEXT NOT NULL DEFAULT '',
++                status TEXT NOT NULL DEFAULT 'queued',
++                progress REAL NOT NULL DEFAULT 0,
++                uploaded_bytes INTEGER NOT NULL DEFAULT 0,
++                session_url TEXT NOT NULL DEFAULT '',
++                google_file_id TEXT NOT NULL DEFAULT '',
++                last_error TEXT NOT NULL DEFAULT '',
++                created_at TEXT NOT NULL,
++                updated_at TEXT NOT NULL,
++                finished_at TEXT NOT NULL DEFAULT ''
++            );
++            CREATE INDEX IF NOT EXISTS idx_upload_jobs_fingerprint
++                ON upload_jobs(fingerprint, destination_slug, destination_path);
+             """
+         )
+         # Migrations from 1.0.x
+@@ -143,6 +167,12 @@ def init_db():
+             "WHERE status IN ('queued','running','cancelling')",
+             (utcnow(),),
+         )
++        db.execute(
++            "UPDATE upload_jobs SET status='interrupted', updated_at=?, "
++            "last_error=CASE WHEN last_error='' THEN 'Upload interrompido por reinício do Rclone Manager. Selecione o mesmo arquivo para retomar.' ELSE last_error END "
++            "WHERE status IN ('queued','ready','uploading')",
++            (utcnow(),),
++        )
+ 
+ 
+ def get_setting(key, default=None):
+@@ -319,3 +349,52 @@ def prune_transfer_usage(days=8):
+     cutoff = (datetime.now(timezone.utc) - timedelta(days=max(2, int(days or 8)))).isoformat()
+     with db_conn() as db:
+         db.execute("DELETE FROM transfer_usage WHERE recorded_at < ?", (cutoff,))
++
++
++def create_upload_job(destination_slug, destination_path, relative_path, file_name, size_bytes=0, mime_type="application/octet-stream", conflict_mode="replace", fingerprint=""):
++    now = utcnow()
++    with db_conn() as db:
++        cur = db.execute(
++            "INSERT INTO upload_jobs(destination_slug,destination_path,relative_path,file_name,size_bytes,mime_type,conflict_mode,fingerprint,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
++            (destination_slug, destination_pa
