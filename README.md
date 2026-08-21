@@ -7,7 +7,7 @@ Gerenciador de múltiplas contas Google Drive criado para **Unraid** e **ZorinOS
 | Edição | Versão | Pacote |
 |---|---:|---|
 | **Unraid** | **1.4.0 Final** | `dist/unraid/rclone-manager-unraid-v1.4.0.zip` |
-| **ZorinOS Desktop** | **1.0.0** | GitHub Releases + `dist/zorinos/` |
+| **ZorinOS Desktop** | **1.0.2** | GitHub Releases (`zorinos-v1.0.2`) |
 
 ### Principais recursos
 
@@ -46,10 +46,10 @@ Para atualizar uma instalação existente, preserve `.env`, `data/` e `cache/`, 
 
 ## ZorinOS Desktop
 
-Baixe o `.deb` na seção **Releases** e instale:
+Baixe o `.deb` da release **zorinos-v1.0.2** e instale:
 
 ```bash
-sudo apt install ./rclone-manager-desktop-zorinos_1.0.0_all.deb
+sudo apt install ./rclone-manager-desktop-zorinos_1.0.2_all.deb
 ```
 
 Atualizações futuras usam o mesmo comando com o novo `.deb`; os dados locais do usuário são preservados.
