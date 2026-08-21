@@ -1,5 +1,30 @@
 # Changelog
 
+## ZorinOS Desktop 1.1.2
+
+- mantém o Centro de Upload introduzido na 1.1.1;
+- corrige uploads que eram interrompidos ao navegar para outro menu do Rclone Manager;
+- upload passa a continuar ativo durante a navegação interna normal entre Dashboard, Transferências, Upload, Speedtest, Configurações e Sistema;
+- adiciona taxa instantânea e taxa média de upload na fila e no histórico;
+- adiciona progresso geral com velocidade agregada para uploads simultâneos;
+- novo menu **Speedtest** abaixo de Upload;
+- Speedtest mede ping, jitter, download e upload, com perfis Rápido, Padrão e Completo;
+- histórico de Speedtests persistido no banco;
+- mantém retomada por sessão resumível do Google Drive quando o aplicativo/conexão realmente é interrompido;
+- versão validada em uso real no ZorinOS e promovida a Stable.
+
+## Unraid 1.5.2
+
+- mantém o Centro de Upload da 1.5.1;
+- upload continua ativo durante navegação entre as páginas do Manager;
+- adiciona taxa instantânea e média de transferência na fila e no histórico;
+- adiciona velocidade agregada da fila de uploads simultâneos;
+- novo menu **Speedtest** com ping, jitter, download e upload;
+- perfis Rápido, Padrão e Completo, com histórico persistente;
+- o Speedtest mede a conexão do próprio servidor Unraid;
+- preserva upload em blocos, sessões resumíveis e estimativa de cota;
+- versão promovida a Stable após validação funcional do fluxo compartilhado com a edição Desktop.
+
 ## ZorinOS Desktop 1.1.1
 
 - novo **Centro de Upload** para enviar arquivos e pastas do computador diretamente aos Google Drives cadastrados;
