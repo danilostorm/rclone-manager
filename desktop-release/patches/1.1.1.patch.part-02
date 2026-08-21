@@ -1,0 +1,158 @@
+ta-mini{min-width:120px;margin:6px 0 3px}.job-verify{max-width:340px;margin-top:4px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ @media(max-width:700px){.backup-row{align-items:flex-start;flex-direction:column}.diag-grid{grid-template-columns:1fr}}
++
++
++/* Upload Center */
++.upload-grid>.span-5{grid-column:span 5}.upload-grid>.span-7{grid-column:span 7}
++.upload-grid .card{min-width:0}.upload-hero strong{color:#fff}.upload-drop{border:2px dashed #34445a;border-radius:14px;padding:28px 18px;text-align:center;background:#0d131c;display:grid;gap:9px;place-items:center;transition:.15s ease}.upload-drop.drag{border-color:var(--accent);background:#18140f;box-shadow:0 0 0 3px rgba(255,138,43,.08)}.upload-drop-icon{font-size:36px;line-height:1;color:var(--accent)}.upload-drop>span{color:var(--muted)}.upload-options{align-items:end}.upload-summary{display:grid;grid-template-columns:auto minmax(160px,1fr) auto;gap:12px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:10px;background:#0f151e}.upload-summary .progress{margin:0;min-width:0}.upload-queue{margin-top:14px;border:1px solid var(--line);border-radius:11px;max-height:420px;overflow:auto;background:#0d1117}.upload-qrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,280px) auto;gap:12px;align-items:center;padding:11px 12px;border-bottom:1px solid #202a38}.upload-qrow:last-child{border-bottom:0}.upload-qinfo{min-width:0}.upload-qinfo strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.upload-qrow .progress{min-width:0;width:100%}.upload-browser{min-height:300px;max-height:500px}.upload-error{max-width:360px}.badge.ready,.badge.uploading{color:#ffe1a0;border-color:#634f22;background:#2b2413}.badge.ready:before,.badge.uploading:before{background:var(--yellow)}
++@media(max-width:1050px){.upload-qrow{grid-template-columns:1fr}.upload-qrow .actions{justify-content:flex-start}.upload-summary{grid-template-columns:1fr}.upload-grid .span-5,.upload-grid .span-7{grid-column:span 12}}
+diff --git a/app/static/app.js b/app/static/app.js
+index 71973c0..71bacfd 100644
+--- a/app/static/app.js
++++ b/app/static/app.js
+@@ -128,3 +128,117 @@ function initTransferPage(){
+ }
+ 
+ document.addEventListener('DOMContentLoaded',()=>{initTabs();refreshStatuses();setInterval(refreshStatuses,6000);initTransferPage()});
++
++function initUploadPage(){
++  if(!window.RCLONE_UPLOAD_PAGE)return;
++  const dest=document.getElementById('uploadDestination'),destPathEl=document.getElementById('uploadDestPath'),browser=document.getElementById('uploadDestBrowser'),search=document.getElementById('uploadDestSearch');
++  const fileInput=document.getElementById('uploadFileInput'),folderInput=document.getElementById('uploadFolderInput'),queueEl=document.getElementById('uploadQueue'),drop=document.getElementById('uploadDropZone');
++  const startBtn=document.getElementById('uploadStart'),pauseBtn=document.getElementById('uploadPause'),badge=document.getElementById('uploadSelectionBadge'),totalSizeEl=document.getElementById('uploadTotalSize'),totalText=document.getElementById('uploadTotalText'),totalBar=document.getElementById('uploadTotalBar');
++  let destPath='',searchMode=false,paused=false,running=false,queue=[];
++
++  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
++  const safeRel=(f)=>((f.webkitRelativePath||f.name||'').replace(/\\/g,'/').replace(/^\/+/,''));
++  const fingerprint=(f,rel)=>`${rel}|${f.size}|${f.lastModified||0}`;
++  const statusClass=s=>s==='completed'?'mounted':(['uploading','ready','queued','preparing'].includes(s)?'starting':s==='waiting_quota'?'waiting':(['error','interrupted'].includes(s)?'error':'stopped'));
++
++  function renderDestRows(items){
++    browser.innerHTML='';
++    if(!items.length){browser.innerHTML='<div class="empty">Pasta vazia. Você pode enviar para esta pasta.</div>';return}
++    items.forEach(item=>{
++      const r=document.createElement('div');r.className='browserrow';
++      const icon=document.createElement('div');icon.textContent=item.is_dir?'📁':'📄';
++      const n=document.createElement('div');n.className='browsername';const b=document.createElement('button');b.type='button';b.textContent=item.name;b.title=item.path;b.addEventListener('click',()=>{if(item.is_dir){destPath=item.path;searchMode=false;if(search)search.value='';loadDest()}});n.appendChild(b);
++      const m=document.createElement('div');m.className='browsermeta';m.textContent=item.is_dir?'Pasta':humanBytes(item.size);
++      r.append(icon,n,m);browser.appendChild(r);
++    });
++  }
++  async function loadDest(){
++    if(!dest?.value){browser.innerHTML='<div class="empty">Nenhum destino com escrita.</div>';return}
++    destPathEl.textContent='/'+destPath;browser.innerHTML='<div class="empty">Carregando...</div>';
++    try{const d=await browseDrive(dest.value,'drive',destPath);searchMode=false;renderDestRows(d.items)}catch(e){browser.innerHTML=`<div class="flash danger" style="margin:12px">${escapeHtml(e.message)}</div>`}
++  }
++  async function doSearch(){
++    const q=(search?.value||'').trim();if(q.length<2)return alert('Digite pelo menos 2 caracteres.');
++    browser.innerHTML='<div class="empty">Buscando...</div>';
++    try{const d=await searchDrive(dest.value,'drive',destPath,q);searchMode=true;renderDestRows(d.items.filter(x=>x.is_dir))}catch(e){alert(e.message)}
++  }
++  function escapeHtml(v){const d=document.createElement('div');d.textContent=v||'';return d.innerHTML}
++  async function createFolder(){
++    if(!dest?.value)return alert('Nenhum Drive com escrita.');
++    const name=prompt('Nome da nova pasta:');if(!name)return;
++    try{await apiPost('/api/fileops/mkdir',{slug:dest.value,view:'drive',path:destPath,name});await loadDest()}catch(e){alert(e.message)}
++  }
++
++  function addFiles(list){
++    const preserve=document.getElementById('uploadPreserveTree')?.checked!==false;
++    [...list].forEach(file=>{
++      let rel=safeRel(file);if(!preserve)rel=file.name;
++      const key=fingerprint(file,rel);
++      if(queue.some(x=>x.key===key))return;
++      queue.push({key,file,relativePath:rel,status:'pending',progress:0,offset:0,jobId:null,error:'',cancelled:false});
++    });renderQueue();
++  }
++  function updateTotals(){
++    const bytes=queue.reduce((a,x)=>a+Number(x.file?.size||0),0);const done=queue.reduce((a,x)=>a+Math.min(Number(x.file?.size||0),Number(x.offset||0)),0);const pct=bytes?done*100/bytes:0;
++    badge.textContent=`${queue.length} arquivo${queue.length===1?'':'s'}`;totalSizeEl.textContent=humanBytes(bytes);totalText.textContent=`${pct.toFixed(1)}% · ${humanBytes(done)} / ${humanBytes(bytes)}`;totalBar.style.width=`${pct}%`;
++    startBtn.disabled=!queue.length||!dest?.value||running;pauseBtn.disabled=!running;pauseBtn.textContent=paused?'Continuar':'Pausar';
++  }
++  function renderQueue(){
++    queueEl.innerHTML='';if(!queue.length){queueEl.innerHTML='<div class="empty">Nenhum arquivo selecionado.</div>';updateTotals();return}
++    queue.forEach((item,idx)=>{
++      const r=document.createElement('div');r.className='upload-qrow';
++      const info=document.createElement('div');info.className='upload-qinfo';info.innerHTML=`<strong>${escapeHtml(item.relativePath)}</strong><div class="muted">${humanBytes(item.file.size)}</div>${item.error?`<div class="job-error">${escapeHtml(item.error)}</div>`:''}`;
++      const prog=document.createElement('div');prog.innerHTML=`<div class="progress"><span style="width:${item.progress||0}%"></span></div><div class="muted">${Number(item.progress||0).toFixed(1)}% · ${escapeHtml(item.status)}</div>`;
++      const acts=document.createElement('div');acts.className='actions';const rm=document.createElement('button');rm.type='button';rm.className='btn tiny danger';rm.textContent='Remover';rm.disabled=['uploading','preparing'].includes(item.status);rm.addEventListener('click',()=>{queue.splice(idx,1);renderQueue()});acts.appendChild(rm);
++      r.append(info,prog,acts);queueEl.appendChild(r);
++    });updateTotals();
++  }
++  async function prepare(item){
++    item.status='preparing';item.error='';renderQueue();
++    const conflict=document.getElementById('uploadConflict').value;
++    const payload={destination_slug:dest.value,destination_path:destPath,relative_path:item.relativePath,file_name:item.file.name,size_bytes:item.file.size,mime_type:item.file.type||'application/octet-stream',conflict_mode:conflict,fingerprint:item.key};
++    const r=await fetch('/api/uploads/prepare',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':window.RCLONE_CSRF||''},body:JSON.stringify(payload)});const data=await r.json();if(!r.ok||!data.ok)throw new Error(data.error||`HTTP ${r.status}`);
++    item.jobId=data.job.id;item.offset=Number(data.job.uploaded_bytes||0);item.progress=item.file.size?item.offset*100/item.file.size:100;item.status=data.job.status;
++    if(['completed','skipped'].includes(item.status)){item.offset=item.file.size;item.progress=100}
++    renderQueue();
++  }
++  async function putChunk(item,blob,start){
++    const r=await fetch(`/api/uploads/${item.jobId}/chunk`,{method:'PUT',headers:{'X-CSRF-Token':window.RCLONE_CSRF||'','X-Chunk-Start':String(start),'Content-Type':'application/octet-stream'},body:blob});let data={};try{data=await r.json()}catch(e){}
++    if(r.status===409&&Number.isFinite(Number(data.expected_offset))){item.offset=Number(data.expected_offset);return null}
++    if(!r.ok||!data.ok)throw new Error(data.error||`HTTP ${r.status}`);return data.job;
++  }
++  async function runItem(item){
++    try{
++      if(!item.jobId||['pending','error','interrupted','waiting_quota'].includes(item.status))await prepare(item);
++      if(['completed','skipped'].includes(item.status))return;
++      const chunkBytes=Number(document.getElementById('uploadChunk').value||16)*1024*1024;
++      while(item.offset<item.file.size&&!item.cancelled){
++        while(paused&&!item.cancelled)await sleep(150);
++        if(item.cancelled)break;
++        item.status='uploading';renderQueue();const end=Math.min(item.file.size,item.offset+chunkBytes);const blob=item.file.slice(item.offset,end);const before=item.offset;const job=await putChunk(item,blob,before);
++        if(job){item.offset=Number(job.uploaded_bytes||end);item.status=job.status;item.error=job.last_error||''}else if(item.offset===before){await sleep(100);}
++        item.progress=item.file.size?item.offset*100/item.file.size:100;renderQueue();
++        if(['completed','skipped'].includes(item.status)){item.progress=100;item.offset=item.file.size;break}
++        if(item.status==='waiting_quota')throw new Error(item.error||'Google sinalizou limite/cota. Tente novamente mais tarde.');
++      }
++    }catch(e){item.status=item.status==='waiting_quota'?'waiting_quota':'error';item.error=e.message||String(e);renderQueue()}
++  }
++  async function runQueue(){
++    if(running||!queue.length||!dest?.value)return;running=true;paused=false;updateTotals();let cursor=0;const n=Math.max(1,Math.min(4,Number(document.getElementById('uploadParallel').value||2)));
++    async function worker(){while(true){const i=cursor++;if(i>=queue.length)return;const item=queue[i];if(item.cancelled||['completed','skipped'].includes(item.status))continue;await runItem(item)}}
++    await Promise.all(Array.from({length:n},worker));running=false;paused=false;renderQueue();
++  }
++
++  document.getElementById('uploadChooseFiles')?.addEventListener('click',()=>fileInput.click());document.getElementById('uploadChooseFolder')?.addEventListener('click',()=>folderInput.click());
++  fileInput?.addEventListener('change',()=>{addFiles(fileInput.files);fileInput.value=''});folderInput?.addEventListener('change',()=>{addFiles(folderInput.files);folderInput.value=''});
++  ['dragenter','dragover'].forEach(ev=>drop?.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(ev=>drop?.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));drop?.addEventListener('drop',e=>addFiles(e.dataTransfer.files));
++  startBtn?.addEventListener('click',runQueue);pauseBtn?.addEventListener('click',()=>{paused=!paused;updateTotals()});document.getElementById('uploadClearQueue')?.addEventListener('click',()=>{if(running)return alert('Pause/aguarde os uploads em andamento antes de limpar a fila.');queue=[];renderQueue()});
++  document.getElementById('uploadPreserveTree')?.addEventListener('change',()=>{if(queue.length&&!confirm('Alterar esta opção limpa a seleção atual para recalcular os caminhos. Continuar?')){document.getElementById('uploadPreserveTree').checked=!document.getElementById('uploadPreserveTree').checked;return}queue=[];renderQueue()});
++  dest?.addEventListener('change',()=>{destPath='';loadDest()});document.getElementById('uploadDestUp')?.addEventListener('click',()=>{destPath=parentPath(destPath);loadDest()});document.getElementById('uploadDestRefresh')?.addEventListener('click',loadDest);document.getElementById('uploadDestNewFolder')?.addEventListener('click',createFolder);document.getElementById('uploadDestSearchBtn')?.addEventListener('click',doSearch);document.getElementById('uploadDestClearSearch')?.addEventListener('click',()=>{search.value='';loadDest()});search?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();doSearch()}});
++  loadDest();renderQueue();
++
++  setInterval(async()=>{try{const r=await fetch('/api/uploads',{cache:'no-store'});if(!r.ok)return;const jobs=await r.json();jobs.forEach(j=>{const tr=document.querySelector(`[data-upload-job="${j.id}"]`);if(!tr)return;const st=tr.querySelector('.upload-status');if(st){st.textContent=j.status;st.className=`badge upload-status ${statusClass(j.status)}`}const pr=tr.querySelector('.upload-progress');if(pr)pr.textContent=`${Number(j.progress||0).toFixed(1)}% · ${humanBytes(j.uploaded_bytes||0)} / ${humanBytes(j.size_bytes||0)}`;const bar=tr.querySelector('.progress span');if(bar)bar.style.width=`${j.progress||0}%`;const er=tr.querySelector('.upload-error');if(er)er.textContent=j.last_error||''})}catch(e){}},3000);
++}
++
++// initialize upload page in addition to the existing dashboard/transfer initializers
++if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initUploadPage);else initUploadPage();
+diff --git a/app/templates/base.html b/app/templates/base.html
+index 7b7fb05..5327e2d 100644
+--- a/app/templates/base.html
++++ b/app/templates/base.html
+@@ -14,6 +14,7 @@
+       <a href="{{ url_for('dashboard') }}">◈ Dashboard</a>
+       <a href="{{ url_for('account_new') }}">＋ Adicionar Drive</a>
+       <a href="{{ url_for('transfers_page') }}">⇄ Transferências</a>
++      <a href="{{ url_for('uploads_page') }}">⇧ Upload</a>
+       <div class="sep"></div>
+       <a href="{{ url_for('settings_get') }}">⚙ Configurações</a>
+       <a href="{{ url_for('maintenance_page') }}">🛠 Sistema</a>
+diff --git a/mnt/data/patchgen/new/z/app/templates/uploads.html b/app/templates/uploads.html
+new file mode 100644
+index 0000000..a6c1133
+--- /dev/null
++++ b/app/templates/uploads.html
+@@ -0,0 +1,74 @@
++{% extends 'base.html' %}
++{% block title %}Upload · Rclone Manager{% endblock %}
++{% block content %}
++<div class="topbar">
++  <div><h1>Upload para o Drive</h1><div class="sub">Envie arquivos e pastas do seu computador diretamente para qualquer Google Drive conectado.</div></div>
++  <form method="post" action="{{ url_for('upload_clear_finished') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit">Limpar finalizados</button></form>
++</div>
++
++<div class="notice upload-hero" style="margin-bottom:16px">
++  <strong>Upload em partes + retomada.</strong> O navegador envia blocos de até 64 MiB e o Manager repassa cada bloco para uma sessão resumível do Google Drive. Assim, um arquivo grande não precisa ficar inteiro armazenado pelo Rclone Manager. Se cair a conexão, selecione novamente o mesmo arquivo e ele tenta continu
