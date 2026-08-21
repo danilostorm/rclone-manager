@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'desktop-release/VERSION'
+      - 'desktop-release/patches/**'
       - 'dist/zorinos/**'
       - 'docs/RELEASE-*.md'
       - '.github/workflows/publish-zorinos-release.yml'
@@ -24,35 +25,65 @@ jobs:
         id: version
         shell: bash
         run: |
+          set -euo pipefail
           VERSION="$(tr -d '[:space:]' < desktop-release/VERSION)"
           test -n "$VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=zorinos-v$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Verify and extract source
+      - name: Prepare source package
         shell: bash
         run: |
           set -euo pipefail
           VERSION='${{ steps.version.outputs.version }}'
           ZIP="dist/zorinos/rclone-manager-desktop-zorinos-v${VERSION}.zip"
-          B64="${ZIP}.base64"
+          SHA="dist/zorinos/rclone-manager-desktop-zorinos-v${VERSION}.sha256"
 
-          # Release sources may be stored as base64 text (single file or chunks)
-          # so publishing does not depend on committing opaque binary blobs.
-          if [ ! -f "$ZIP" ] && [ -f "$B64" ]; then
-            base64 --decode "$B64" > "$ZIP"
-          elif [ ! -f "$ZIP" ] && compgen -G "${B64}.part-*" >/dev/null; then
-            cat ${B64}.part-* | base64 --decode > "$ZIP"
+          if [ ! -f "$ZIP" ]; then
+            BASE_VERSION="1.0.0"
+            BASE_ZIP="dist/zorinos/rclone-manager-desktop-zorinos-v${BASE_VERSION}.zip"
+            PATCH="desktop-release/patches/${VERSION}.patch"
+
+            test -f "$BASE_ZIP"
+            test -f "$PATCH"
+            rm -rf build-patch
+            mkdir -p build-patch
+            unzip -q "$BASE_ZIP" -d build-patch
+            mv "build-patch/rclone-manager-desktop-v${BASE_VERSION}" "build-patch/rclone-manager-desktop-v${VERSION}"
+            (
+              cd "build-patch/rclone-manager-desktop-v${VERSION}"
+              patch -p1 < "$GITHUB_WORKSPACE/$PATCH"
+            )
+            (
+              cd build-patch
+              zip -qr "$GITHUB_WORKSPACE/$ZIP" "rclone-manager-desktop-v${VERSION}"
+            )
           fi
 
-          test -f "$ZIP"
           (
             cd dist/zorinos
-            sha256sum -c "rclone-manager-desktop-zorinos-v${VERSION}.sha256"
+            sha256sum "rclone-manager-desktop-zorinos-v${VERSION}.zip" > "rclone-manager-desktop-zorinos-v${VERSION}.sha256"
           )
+
           rm -rf build-src package
           mkdir -p build-src
           unzip -q "$ZIP" -d build-src
+          test -d "build-src/rclone-manager-desktop-v${VERSION}"
+
+      - name: Security sanity check
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION='${{ steps.version.outputs.version }}'
+          SRC="build-src/rclone-manager-desktop-v${VERSION}"
+          if find "$SRC" -type f \( -name '.env' -o -name 'rclone.conf' -o -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
+            echo 'Sensitive runtime file found in release source.' >&2
+            exit 1
+          fi
+          if find "$SRC" -type d -name '__pycache__' | grep -q .; then
+            echo '__pycache__ must not be shipped.' >&2
+            exit 1
+          fi
 
       - name: Build Debian package
         shell: bash
@@ -63,7 +94,6 @@ jobs:
           PKG="package"
           DEB="dist/zorinos/rclone-manager-desktop-zorinos_${VERSION}_all.deb"
 
-          test -d "$SRC"
           mkdir -p "$PKG/DEBIAN" "$PKG/opt/rclone-manager-desktop" "$PKG/usr/bin" "$PKG/usr/share/applications"
           cp -a "$SRC"/. "$PKG/opt/rclone-manager-desktop/"
           cp "$SRC/packaging/rclone-manager-desktop" "$PKG/usr/bin/rclone-manager-desktop"
