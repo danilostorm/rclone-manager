@@ -6,6 +6,7 @@ on:
     paths:
       - 'desktop-release/VERSION'
       - 'dist/zorinos/**'
+      - 'docs/RELEASE-*.md'
       - '.github/workflows/publish-zorinos-release.yml'
   workflow_dispatch:
 
@@ -34,6 +35,14 @@ jobs:
           set -euo pipefail
           VERSION='${{ steps.version.outputs.version }}'
           ZIP="dist/zorinos/rclone-manager-desktop-zorinos-v${VERSION}.zip"
+          B64="${ZIP}.base64"
+
+          # The repository may store a release source as base64 text so that
+          # publishing does not depend on committing opaque binary blobs.
+          if [ ! -f "$ZIP" ] && [ -f "$B64" ]; then
+            base64 --decode "$B64" > "$ZIP"
+          fi
+
           test -f "$ZIP"
           (
             cd dist/zorinos
@@ -104,11 +113,19 @@ jobs:
           ZIP="dist/zorinos/rclone-manager-desktop-zorinos-v${VERSION}.zip"
           DEB="dist/zorinos/rclone-manager-desktop-zorinos_${VERSION}_all.deb"
           TITLE="Rclone Manager Desktop for ZorinOS v${VERSION}"
+          NOTES="docs/RELEASE-${VERSION}.md"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$DEB" "${DEB}.sha256" "$ZIP" "${ZIP}.sha256" --clobber
+            if [ -f "$NOTES" ]; then
+              gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES"
+            fi
           else
-            gh release create "$TAG" "$DEB" "${DEB}.sha256" "$ZIP" "${ZIP}.sha256" \
-              --title "$TITLE" \
-              --notes "Rclone Manager Desktop ${VERSION} para ZorinOS/Ubuntu. Instale com: sudo apt install ./rclone-manager-desktop-zorinos_${VERSION}_all.deb"
+            if [ -f "$NOTES" ]; then
+              gh release create "$TAG" "$DEB" "${DEB}.sha256" "$ZIP" "${ZIP}.sha256" --title "$TITLE" --notes-file "$NOTES"
+            else
+              gh release create "$TAG" "$DEB" "${DEB}.sha256" "$ZIP" "${ZIP}.sha256" \
+                --title "$TITLE" \
+                --notes "Rclone Manager Desktop ${VERSION} para ZorinOS/Ubuntu. Instale com: sudo apt install ./rclone-manager-desktop-zorinos_${VERSION}_all.deb"
+            fi
           fi
