@@ -1,18 +1,19 @@
 # Rclone Manager
 
-Gerenciador de múltiplas contas Google Drive criado para **Unraid** e **ZorinOS Desktop**.
+Gerenciador de múltiplas contas Google Drive para **Unraid**, **ZorinOS Desktop** e Windows 10/11.
 
-## Versões estáveis
+## Versões atuais
 
-| Edição | Versão | Pacote |
+| Edição | Versão | Status |
 |---|---:|---|
-| **Unraid** | **1.4.0 Final** | `dist/unraid/rclone-manager-unraid-v1.4.0.zip` |
-| **ZorinOS Desktop** | **1.0.2** | GitHub Releases (`zorinos-v1.0.2`) |
+| **Unraid** | **1.5.1** | **Stable** |
+| **ZorinOS Desktop** | **1.1.1** | **Stable** |
+| **Windows 10/11** | **1.1.1** | Beta até validação final no Windows |
 
 ### Principais recursos
 
 - múltiplas contas Google Drive;
-- mounts via rclone/FUSE;
+- mounts via rclone/FUSE (e WinFsp na edição Windows);
 - Centro de Transferências entre Drives;
 - acesso a **Compartilhados comigo**;
 - busca, criação de pastas, renomear e exclusão/lixeira;
@@ -20,44 +21,57 @@ Gerenciador de múltiplas contas Google Drive criado para **Unraid** e **ZorinOS
 - retomada por checkpoint;
 - tratamento de cota e retry automático;
 - estimativa de transferência nas últimas 24 horas;
-- backup/restore e diagnóstico.
+- backup/restore e diagnóstico;
+- **Centro de Upload** para enviar arquivos e pastas do computador diretamente aos Drives cadastrados;
+- upload em blocos com sessão resumível do Google Drive;
+- escolha do destino, criação de pasta, drag & drop, uploads simultâneos e tratamento de conflitos.
 
 ## Unraid
 
-Baixe `dist/unraid/rclone-manager-unraid-v1.4.0.zip`, extraia em:
+A versão estável é **1.5.1**. Baixe na seção **Releases** (`unraid-v1.5.1`).
+
+Para atualizar uma instalação existente, extraia o conteúdo por cima de:
 
 ```text
 /mnt/user/appdata/rclone-manager
 ```
 
-Depois:
+Preserve obrigatoriamente:
+
+```text
+.env
+data/
+cache/
+```
+
+Depois execute:
 
 ```bash
 cd /mnt/user/appdata/rclone-manager
 chmod +x *.sh scripts/*.sh
-./install.sh
-```
-
-Para atualizar uma instalação existente, preserve `.env`, `data/` e `cache/`, substitua os arquivos do pacote e rode:
-
-```bash
 ./update.sh
 ```
 
 ## ZorinOS Desktop
 
-Baixe o `.deb` da release **zorinos-v1.0.2** e instale:
+A versão estável é **1.1.1**. Baixe o `.deb` na release **zorinos-v1.1.1** e instale/atualize com:
 
 ```bash
-sudo apt install ./rclone-manager-desktop-zorinos_1.0.2_all.deb
+sudo apt install ./rclone-manager-desktop-zorinos_1.1.1_all.deb
 ```
 
-Atualizações futuras usam o mesmo comando com o novo `.deb`; os dados locais do usuário são preservados.
+Os dados locais do usuário são preservados durante a atualização.
 
 Veja [docs/ZORINOS.md](docs/ZORINOS.md) e [docs/UPDATES.md](docs/UPDATES.md).
+
+## Windows 10/11
+
+A edição Windows está em Beta até concluir a validação específica de mount/WinFsp e instalador em Windows real. Ela não é promovida a Stable apenas por compartilhar o mesmo frontend das versões Linux.
 
 ## Segurança
 
 Este repositório **não inclui dados reais de instalação**: Client Secret, tokens OAuth, `rclone.conf`, bancos SQLite, `.env`, senhas, webhooks ou backups.
+
+Os workflows de release também verificam a presença de arquivos sensíveis antes de gerar os pacotes.
 
 Veja [SECURITY.md](SECURITY.md).
