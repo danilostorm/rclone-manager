@@ -1,14 +1,14 @@
 # Rclone Manager Desktop no ZorinOS
 
-Versão estável atual: **1.1.1**.
+Versão estável atual: **1.1.2**.
 
 ## Instalação / atualização
 
-Baixe o pacote `.deb` da release `zorinos-v1.1.1` e rode:
+Baixe o pacote `.deb` da release `zorinos-v1.1.2` e rode:
 
 ```bash
 sudo apt update
-sudo apt install ./rclone-manager-desktop-zorinos_1.1.1_all.deb
+sudo apt install ./rclone-manager-desktop-zorinos_1.1.2_all.deb
 ```
 
 Depois procure **Rclone Manager** no menu do ZorinOS.
@@ -17,7 +17,7 @@ Atualizações futuras usam o mesmo comando com o novo `.deb`; não é necessár
 
 ## Centro de Upload
 
-A partir da v1.1.1, o menu **Upload** permite:
+O menu **Upload** permite:
 
 - enviar arquivos individuais, vários arquivos ou uma pasta inteira;
 - arrastar e soltar arquivos;
@@ -26,9 +26,23 @@ A partir da v1.1.1, o menu **Upload** permite:
 - preservar subpastas;
 - escolher entre substituir, renomear ou ignorar arquivos existentes;
 - usar sessões resumíveis do Google Drive para tentar continuar uploads interrompidos;
-- acompanhar histórico e estimativa de uso em 24 horas.
+- acompanhar taxa instantânea, taxa média, progresso e histórico;
+- continuar o upload durante a navegação normal entre os menus do aplicativo.
 
 Contas de destino precisam estar autorizadas com **leitura/escrita**. Isso não torna os mounts graváveis: os mounts continuam read-only.
+
+## Speedtest
+
+A partir da v1.1.2 existe o menu **Speedtest** com:
+
+- ping;
+- jitter;
+- download;
+- upload;
+- perfis Rápido, Padrão e Completo;
+- histórico persistente dos testes.
+
+Na edição Desktop o teste mede a conexão do próprio computador ZorinOS.
 
 ## Dados locais
 
