@@ -2,7 +2,7 @@
 
 ## Unraid
 
-A edição Unraid usa versões `1.x.y` e a versão estável atual é **1.5.1**.
+A edição Unraid usa versões `1.x.y` e a versão estável atual é **1.5.2**.
 
 Para atualização manual:
 
@@ -23,7 +23,7 @@ O workflow `.github/workflows/publish-unraid-release.yml` reconstrói o pacote a
 
 ## ZorinOS
 
-A versão estável atual é **1.1.1**.
+A versão estável atual é **1.1.2**.
 
 A edição Desktop é publicada com tags:
 
@@ -52,4 +52,4 @@ O workflow `.github/workflows/publish-zorinos-release.yml` monta o pacote fonte,
 
 ## Windows
 
-A edição Windows segue como **Beta** até passar pela validação específica em Windows 10/11, incluindo WinFsp, mount, inicialização e instalador. Só depois deve receber tag de Stable.
+A edição Windows segue como **1.1.2 Beta** até passar pela validação específica em Windows 10/11, incluindo WinFsp, mount, inicialização e instalador. Só depois deve receber tag de Stable.
