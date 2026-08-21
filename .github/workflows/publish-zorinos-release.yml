@@ -37,10 +37,12 @@ jobs:
           ZIP="dist/zorinos/rclone-manager-desktop-zorinos-v${VERSION}.zip"
           B64="${ZIP}.base64"
 
-          # The repository may store a release source as base64 text so that
-          # publishing does not depend on committing opaque binary blobs.
+          # Release sources may be stored as base64 text (single file or chunks)
+          # so publishing does not depend on committing opaque binary blobs.
           if [ ! -f "$ZIP" ] && [ -f "$B64" ]; then
             base64 --decode "$B64" > "$ZIP"
+          elif [ ! -f "$ZIP" ] && compgen -G "${B64}.part-*" >/dev/null; then
+            cat ${B64}.part-* | base64 --decode > "$ZIP"
           fi
 
           test -f "$ZIP"
