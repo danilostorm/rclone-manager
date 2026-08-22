@@ -20,8 +20,6 @@ A release unificada é **`rclone-manager-v1.9.0`**.
 
 O Manager pode reunir pastas de várias contas Google em um único mount virtual, sem mover nem copiar o conteúdo original.
 
-Fluxo:
-
 ```text
 Conta Anime 01 ── pasta /Animes ──┐
 Conta Anime 02 ── pasta /Animes ──┤
@@ -88,9 +86,9 @@ Detalhes e limitações: [docs/GOOGLE-ADVANCED-ECLONE.md](docs/GOOGLE-ADVANCED-E
 
 ## Código-fonte e reprodução da release
 
-A release estável é reproduzível a partir do próprio histórico Git. As bases anteriores permanecem versionadas em `unraid-release/`, `desktop-release/`, `vps-release/` e `release-bundle/source/`. O diretório `release-bundle/source-full/` contém o delta final validado da 1.9.0, dividido em partes Base64 e protegido por SHA-256.
+A release 1.9.0 é **autocontida no próprio repositório**. `release-bundle/source-full/rclone-manager-bases-1.7.8.tar.xz` contém as quatro bases validadas e `final-1.9.0-patches-small.b64.part-*` contém o delta final. Os dois componentes possuem SHA-256 fixado e documentado.
 
-O workflow `.github/workflows/publish-unified-release.yml` reconstrói as bases, valida o delta final, aplica os patches, checa versões, sintaxe e arquivos sensíveis, empacota cada edição e publica a GitHub Release. O código completo de cada edição também fica dentro dos ZIPs/TAR.GZ publicados.
+O workflow `.github/workflows/publish-unified-release.yml` valida o snapshot base, reconstitui e valida o delta, aplica os patches, checa versões, sintaxe e arquivos sensíveis, empacota cada edição e publica a GitHub Release. Não é necessário baixar uma release anterior para reconstruir a 1.9.0.
 
 Veja [docs/SOURCE-SNAPSHOTS.md](docs/SOURCE-SNAPSHOTS.md) para a cadeia completa de reconstrução.
 
