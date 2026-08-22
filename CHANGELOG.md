@@ -1,5 +1,17 @@
 # Changelog
 
+## Release unificada 1.7.2 — Unraid 1.7.2 / ZorinOS 1.3.2 / VPS 1.0.3 / Extensão 1.0.1
+
+- reúne **Unraid, ZorinOS, VPS e Drive Link Copier em uma única GitHub Release**;
+- adiciona a extensão Chrome/Chromium **Drive Link Copier 1.0.1**, que detecta múltiplos links Google Drive em páginas;
+- permite selecionar a conta e a pasta de destino no Rclone Manager e criar uma pasta nova para agrupar vários links;
+- substitui a confirmação baseada somente no retorno do comando por cópia via Google Drive API `files.copy`;
+- só marca sucesso depois de receber o novo `fileId` e confirmar a pasta `parent` de destino;
+- corrige o falso positivo em que a interface podia indicar arquivos copiados mesmo sem aparecerem no Drive de destino;
+- no fluxo Google Drive → Google Drive, o conteúdo não precisa ser armazenado no disco local da VPS;
+- mantém Backup Completo Portátil v2, OneDrive compartilhado, upload, transferências e Speedtest;
+- desativa a publicação automática de releases separadas por edição; novas versões passam pelo workflow unificado.
+
 ## Unraid 1.7.0
 
 - adiciona **Backup Completo Portátil v2** com banco, Google Drive, rclone, credenciais OAuth/tokens e Microsoft/OneDrive;
