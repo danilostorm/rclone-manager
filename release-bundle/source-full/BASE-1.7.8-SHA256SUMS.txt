@@ -1,0 +1,4 @@
+5e285afbf2a722695520cefbd9b30eca0b9274658f6c5757e8d88ac5a70c6fd0  rclone-manager-unraid-v1.7.8.zip
+e62713fcf2c60b285b5be6a536557c576d3bddee80d16b4f02f8b8f56cf32a49  rclone-manager-desktop-zorinos-v1.3.8.zip
+15d080ef6efd5de031a352cfcab7f31b0dbaf7fef4107e1f4952ea149691731f  rclone-manager-vps-v1.0.9.zip
+9b85221615b1f97a5e6c881d1a5933e9e6d456d9e65a1733bcdc225f85f40d10  rclone-manager-drive-link-copier-v1.2.3.zip
