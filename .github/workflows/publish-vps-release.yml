@@ -1,0 +1,87 @@
+name: Publish VPS release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'vps-release/VERSION'
+      - 'vps-release/patches/**'
+      - 'unraid-release/patches/**'
+      - 'unraid-release/full/**'
+      - 'docs/RELEASE-VPS-*.md'
+      - '.github/workflows/publish-vps-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '[:space:]' < vps-release/VERSION)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=vps-v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Rebuild validated VPS source
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION='${{ steps.version.outputs.version }}'
+          BASE_PREFIX='unraid-release/full/1.6.9.tar.xz.b64.part-'
+          U_PATCH='unraid-release/patches/1.7.0.patch.xz.b64'
+          V_PATCH="vps-release/patches/from-unraid-1.7.0-to-${VERSION}.patch.xz.b64"
+          test -e "${BASE_PREFIX}00"
+          test -f "$U_PATCH"
+          test -f "$V_PATCH"
+          rm -rf build-base build-vps
+          mkdir -p build-base build-vps
+          cat "${BASE_PREFIX}"* | base64 -d > /tmp/base-unraid.tar.xz
+          tar -xJf /tmp/base-unraid.tar.xz -C build-base
+          base64 -d "$U_PATCH" | xz -d > /tmp/unraid.patch
+          patch -d build-base -p1 < /tmp/unraid.patch
+          SRC="build-vps/rclone-manager-vps-v${VERSION}"
+          cp -a build-base "$SRC"
+          base64 -d "$V_PATCH" | xz -d > /tmp/vps.patch
+          patch -d "$SRC" -p1 < /tmp/vps.patch
+          test "$(tr -d '[:space:]' < "$SRC/VERSION")" = "$VERSION"
+          if find "$SRC" -type f \( -name '.env' -o -name 'rclone.conf' -o -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
+            echo 'Sensitive runtime file found.' >&2; exit 1
+          fi
+          if find "$SRC" -type d -name '__pycache__' | grep -q .; then
+            echo '__pycache__ must not be shipped.' >&2; exit 1
+          fi
+          ZIP="rclone-manager-vps-v${VERSION}.zip"
+          TGZ="rclone-manager-vps-v${VERSION}.tar.gz"
+          SHA="rclone-manager-vps-v${VERSION}.sha256"
+          (cd build-vps && zip -qr "$GITHUB_WORKSPACE/$ZIP" "rclone-manager-vps-v${VERSION}")
+          tar -czf "$TGZ" -C build-vps "rclone-manager-vps-v${VERSION}"
+          sha256sum "$ZIP" "$TGZ" > "$SHA"
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION='${{ steps.version.outputs.version }}'
+          TAG='${{ steps.version.outputs.tag }}'
+          ZIP="rclone-manager-vps-v${VERSION}.zip"
+          TGZ="rclone-manager-vps-v${VERSION}.tar.gz"
+          SHA="rclone-manager-vps-v${VERSION}.sha256"
+          NOTES="docs/RELEASE-VPS-${VERSION}.md"
+          TITLE="Rclone Manager VPS v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ZIP" "$TGZ" "$SHA" --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES"
+          else
+            gh release create "$TAG" "$ZIP" "$TGZ" "$SHA" --title "$TITLE" --notes-file "$NOTES"
+          fi
