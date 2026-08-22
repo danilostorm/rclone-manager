@@ -1,5 +1,7 @@
 # Rclone Manager v1.7.8 — release unificada
 
+**Status: Stable.**
+
 Release estável contendo todas as edições atuais do projeto na mesma página de download.
 
 ## Versões incluídas
