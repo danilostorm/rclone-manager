@@ -25,12 +25,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install packaging tools
+        shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq xz-utils zip unzip dpkg-dev
+          sudo apt-get install -y -qq xz-utils patch zip unzip dpkg-dev
 
-      - name: Rebuild source snapshots and validate
+      - name: Rebuild validated source trees
         shell: bash
         run: |
           set -euo pipefail
@@ -47,50 +48,121 @@ jobs:
           test "$VPS" = '1.2.0'
           test "$EXT" = '1.3.0'
 
-          SRC='release-bundle/source-full'
-          rm -rf build dist-unified package /tmp/rclone-source
-          mkdir -p build/unraid build/desktop build/vps build/ext dist-unified /tmp/rclone-source
+          BASE169='unraid-release/full/1.6.9.tar.xz.b64.part-'
+          U170='unraid-release/patches/1.7.0.patch.xz.b64'
+          U172='release-bundle/source/unraid-1.7.0-to-1.7.2.patch.xz.b64.part-'
+          U178='release-bundle/source/unraid-1.7.2-to-1.7.8.patch.xz.b64'
+          D130='desktop-release/patches/from-unraid-1.7.0-to-1.3.0.patch.xz.b64.part-'
+          D132='release-bundle/source/zorin-1.3.0-to-1.3.2.patch.xz.b64.part-'
+          D138='release-bundle/source/zorin-1.3.2-to-1.3.8.patch.xz.b64'
+          UV109='release-bundle/source/unraid-1.7.8-to-vps-1.0.9.patch.xz.b64'
+          EXT101='release-bundle/source/extension-1.0.1.zip.b64.part-'
+          EXT123='release-bundle/source/ext-1.0.1-to-1.2.3.patch.xz.b64.part-'
+          FINALPATCH='release-bundle/source-full/final-1.9.0-patches-small.b64.part-'
 
-          cat "$SRC/unraid-${UNRAID}.tar.xz.b64.part-"* | base64 -d > "/tmp/rclone-source/unraid-${UNRAID}.tar.xz"
-          cat "$SRC/desktop-${ZORIN}.tar.xz.b64.part-"* | base64 -d > "/tmp/rclone-source/desktop-${ZORIN}.tar.xz"
-          cat "$SRC/vps-${VPS}.tar.xz.b64.part-"* | base64 -d > "/tmp/rclone-source/vps-${VPS}.tar.xz"
-          cat "$SRC/drive-link-copier-${EXT}.tar.xz.b64.part-"* | base64 -d > "/tmp/rclone-source/drive-link-copier-${EXT}.tar.xz"
+          test -e "${BASE169}00"
+          test -f "$U170"
+          test -e "${U172}00"
+          test -f "$U178"
+          test -e "${D130}00"
+          test -e "${D132}00"
+          test -f "$D138"
+          test -f "$UV109"
+          test -e "${EXT101}00"
+          test -e "${EXT123}00"
+          test -e "${FINALPATCH}00"
 
-          (cd /tmp/rclone-source && sha256sum -c "$GITHUB_WORKSPACE/$SRC/SHA256SUMS-SOURCE.txt")
+          rm -rf build-base170 build-unraid172 build-unraid build-zorin build-vps build-ext package dist-unified
+          mkdir -p build-base170 build-unraid172 build-unraid build-zorin build-vps build-ext dist-unified /tmp/final-patches
 
-          tar -xJf "/tmp/rclone-source/unraid-${UNRAID}.tar.xz" -C build/unraid
-          tar -xJf "/tmp/rclone-source/desktop-${ZORIN}.tar.xz" -C build/desktop
-          tar -xJf "/tmp/rclone-source/vps-${VPS}.tar.xz" -C build/vps
-          tar -xJf "/tmp/rclone-source/drive-link-copier-${EXT}.tar.xz" -C build/ext
+          # Rebuild Unraid 1.7.0 base.
+          cat "${BASE169}"* | base64 -d > /tmp/unraid-1.6.9.tar.xz
+          tar -xJf /tmp/unraid-1.6.9.tar.xz -C build-base170
+          base64 -d "$U170" | xz -d > /tmp/unraid-1.7.0.patch
+          patch -d build-base170 -p1 --batch < /tmp/unraid-1.7.0.patch
+          test "$(tr -d '[:space:]' < build-base170/VERSION)" = '1.7.0'
 
-          test "$(tr -d '[:space:]' < build/unraid/VERSION)" = "$UNRAID"
-          test "$(tr -d '[:space:]' < build/desktop/VERSION)" = "$ZORIN"
-          test "$(tr -d '[:space:]' < build/vps/VERSION)" = "$VPS"
-          grep -Eq '"version"[[:space:]]*:[[:space:]]*"1\.3\.0"' build/ext/manifest.json
+          # Rebuild Unraid 1.7.8.
+          cp -a build-base170/. build-unraid172/
+          cat "${U172}"* | base64 -d | xz -d > /tmp/unraid-1.7.2.patch
+          patch -d build-unraid172 -p1 --batch < /tmp/unraid-1.7.2.patch
+          test "$(tr -d '[:space:]' < build-unraid172/VERSION)" = '1.7.2'
+          cp -a build-unraid172/. build-unraid/
+          base64 -d "$U178" | xz -d > /tmp/unraid-1.7.8.patch
+          patch -d build-unraid -p1 --batch < /tmp/unraid-1.7.8.patch
+          test "$(tr -d '[:space:]' < build-unraid/VERSION)" = '1.7.8'
 
-          for TREE in build/unraid build/desktop build/vps build/ext; do
-            if find "$TREE" -type f \( -name '.env' -o -name 'rclone.conf' -o -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
-              echo "Sensitive runtime file found in $TREE" >&2
+          # Rebuild ZorinOS 1.3.8.
+          ZSRC="build-zorin/rclone-manager-desktop-v${ZORIN}"
+          cp -a build-base170 "$ZSRC"
+          cat "${D130}"* | base64 -d | xz -d > /tmp/zorin-1.3.0.patch
+          patch -d "$ZSRC" -p1 --batch < /tmp/zorin-1.3.0.patch
+          cat "${D132}"* | base64 -d | xz -d > /tmp/zorin-1.3.2.patch
+          patch -d "$ZSRC" -p1 --batch < /tmp/zorin-1.3.2.patch
+          base64 -d "$D138" | xz -d > /tmp/zorin-1.3.8.patch
+          patch -d "$ZSRC" -p1 --batch < /tmp/zorin-1.3.8.patch
+          test "$(tr -d '[:space:]' < "$ZSRC/VERSION")" = '1.3.8'
+
+          # Rebuild VPS 1.0.9.
+          VSRC="build-vps/rclone-manager-vps-v${VPS}"
+          cp -a build-unraid "$VSRC"
+          base64 -d "$UV109" | xz -d > /tmp/vps-1.0.9.patch
+          patch -d "$VSRC" -p1 --batch < /tmp/vps-1.0.9.patch
+          test "$(tr -d '[:space:]' < "$VSRC/VERSION")" = '1.0.9'
+
+          # Rebuild extension 1.2.3.
+          cat "${EXT101}"* | base64 -d > /tmp/ext-1.0.1.zip
+          unzip -q /tmp/ext-1.0.1.zip -d build-ext/base
+          EXTBASE="$(find build-ext/base -mindepth 1 -maxdepth 1 -type d | head -n1)"
+          test -n "$EXTBASE"
+          cat "${EXT123}"* | base64 -d | xz -d > /tmp/ext-1.2.3.patch
+          patch -d "$EXTBASE" -p1 --batch < /tmp/ext-1.2.3.patch
+          EXTROOT="build-ext/rclone-manager-drive-link-copier-v${EXT}"
+          mv "$EXTBASE" "$EXTROOT"
+          grep -Eq '"version"[[:space:]]*:[[:space:]]*"1\.2\.3"' "$EXTROOT/manifest.json"
+
+          # Apply the final validated 1.9.0 delta.
+          cat "${FINALPATCH}"* | base64 -d > /tmp/final-1.9.0-patches.tar.xz
+          echo '8fcec580b4f5cbecc30120cd396f70af23931a2b91f9a490384a85e0a3b73a74  /tmp/final-1.9.0-patches.tar.xz' | sha256sum -c -
+          tar -xJf /tmp/final-1.9.0-patches.tar.xz -C /tmp/final-patches
+
+          patch -d build-unraid -p1 --batch < /tmp/final-patches/unraid-1.7.8-to-1.9.0.patch
+          patch -d "$ZSRC" -p1 --batch < /tmp/final-patches/desktop-1.3.8-to-1.5.0.patch
+          patch -d "$VSRC" -p1 --batch < /tmp/final-patches/vps-1.0.9-to-1.2.0.patch
+          patch -d "$EXTROOT" -p1 --batch < /tmp/final-patches/extension-1.2.3-to-1.3.0.patch
+
+          test "$(tr -d '[:space:]' < build-unraid/VERSION)" = "$UNRAID"
+          test "$(tr -d '[:space:]' < "$ZSRC/VERSION")" = "$ZORIN"
+          test "$(tr -d '[:space:]' < "$VSRC/VERSION")" = "$VPS"
+          grep -Eq '"version"[[:space:]]*:[[:space:]]*"1\.3\.0"' "$EXTROOT/manifest.json"
+
+          # Refuse persistent or secret runtime files.
+          for SRC in build-unraid "$ZSRC" "$VSRC" "$EXTROOT"; do
+            if find "$SRC" -type f \( -name '.env' -o -name 'rclone.conf' -o -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
+              echo "Sensitive runtime file found in $SRC" >&2
               exit 1
             fi
-            if find "$TREE" -type d -name '__pycache__' | grep -q .; then
-              echo "__pycache__ found in $TREE" >&2
+            if find "$SRC" -type d -name '__pycache__' | grep -q .; then
+              echo "__pycache__ found in $SRC" >&2
               exit 1
             fi
           done
 
           python3 - <<'PY'
           import pathlib, py_compile, tempfile
-          for root in ('build/unraid', 'build/desktop', 'build/vps'):
-              for p in pathlib.Path(root).rglob('*.py'):
+          roots = [pathlib.Path('build-unraid')]
+          roots += list(pathlib.Path('build-zorin').iterdir())
+          roots += list(pathlib.Path('build-vps').iterdir())
+          for root in roots:
+              for p in root.rglob('*.py'):
                   with tempfile.NamedTemporaryFile(suffix='.pyc') as f:
                       py_compile.compile(str(p), doraise=True, cfile=f.name)
           print('Python syntax OK')
           PY
 
-          grep -F 'VERSION="1.2.0"' build/vps/install.sh
-          grep -F 'local/rclone-manager-vps:1.2.0' build/vps/docker-compose.yml
-          grep -F 'org.opencontainers.image.version="1.2.0"' build/vps/Dockerfile
+          grep -F 'VERSION="1.2.0"' "$VSRC/install.sh"
+          grep -F 'local/rclone-manager-vps:1.2.0' "$VSRC/docker-compose.yml"
+          grep -F 'org.opencontainers.image.version="1.2.0"' "$VSRC/Dockerfile"
 
       - name: Package all editions
         shell: bash
@@ -100,28 +172,20 @@ jobs:
           ZORIN="$(tr -d '[:space:]' < desktop-release/VERSION)"
           VPS="$(tr -d '[:space:]' < vps-release/VERSION)"
           EXT="$(tr -d '[:space:]' < extension-release/VERSION)"
+          ZSRC="build-zorin/rclone-manager-desktop-v${ZORIN}"
 
-          (cd build/unraid && zip -qr "$GITHUB_WORKSPACE/dist-unified/rclone-manager-unraid-v${UNRAID}.zip" .)
-
-          mkdir -p "build/package-desktop/rclone-manager-desktop-v${ZORIN}"
-          cp -a build/desktop/. "build/package-desktop/rclone-manager-desktop-v${ZORIN}/"
-          (cd build/package-desktop && zip -qr "$GITHUB_WORKSPACE/dist-unified/rclone-manager-desktop-zorinos-v${ZORIN}.zip" "rclone-manager-desktop-v${ZORIN}")
-
-          mkdir -p "build/package-vps/rclone-manager-vps-v${VPS}"
-          cp -a build/vps/. "build/package-vps/rclone-manager-vps-v${VPS}/"
-          (cd build/package-vps && zip -qr "$GITHUB_WORKSPACE/dist-unified/rclone-manager-vps-v${VPS}.zip" "rclone-manager-vps-v${VPS}")
-          tar -czf "dist-unified/rclone-manager-vps-v${VPS}.tar.gz" -C build/package-vps "rclone-manager-vps-v${VPS}"
-
-          mkdir -p "build/package-ext/rclone-manager-drive-link-copier-v${EXT}"
-          cp -a build/ext/. "build/package-ext/rclone-manager-drive-link-copier-v${EXT}/"
-          (cd build/package-ext && zip -qr "$GITHUB_WORKSPACE/dist-unified/rclone-manager-drive-link-copier-v${EXT}.zip" "rclone-manager-drive-link-copier-v${EXT}")
+          (cd build-unraid && zip -qr "$GITHUB_WORKSPACE/dist-unified/rclone-manager-unraid-v${UNRAID}.zip" .)
+          (cd build-zorin && zip -qr "$GITHUB_WORKSPACE/dist-unified/rclone-manager-desktop-zorinos-v${ZORIN}.zip" "rclone-manager-desktop-v${ZORIN}")
+          (cd build-vps && zip -qr "$GITHUB_WORKSPACE/dist-unified/rclone-manager-vps-v${VPS}.zip" "rclone-manager-vps-v${VPS}")
+          tar -czf "dist-unified/rclone-manager-vps-v${VPS}.tar.gz" -C build-vps "rclone-manager-vps-v${VPS}"
+          (cd build-ext && zip -qr "$GITHUB_WORKSPACE/dist-unified/rclone-manager-drive-link-copier-v${EXT}.zip" "rclone-manager-drive-link-copier-v${EXT}")
 
           PKG=package
           DEB="$GITHUB_WORKSPACE/dist-unified/rclone-manager-desktop-zorinos_${ZORIN}_all.deb"
           mkdir -p "$PKG/DEBIAN" "$PKG/opt/rclone-manager-desktop" "$PKG/usr/bin" "$PKG/usr/share/applications"
-          cp -a build/desktop/. "$PKG/opt/rclone-manager-desktop/"
-          cp build/desktop/packaging/rclone-manager-desktop "$PKG/usr/bin/rclone-manager-desktop"
-          cp build/desktop/packaging/rclone-manager-desktop.desktop "$PKG/usr/share/applications/rclone-manager-desktop.desktop"
+          cp -a "$ZSRC"/. "$PKG/opt/rclone-manager-desktop/"
+          cp "$ZSRC/packaging/rclone-manager-desktop" "$PKG/usr/bin/rclone-manager-desktop"
+          cp "$ZSRC/packaging/rclone-manager-desktop.desktop" "$PKG/usr/share/applications/rclone-manager-desktop.desktop"
           chmod +x "$PKG/usr/bin/rclone-manager-desktop" "$PKG/opt/rclone-manager-desktop/desktop_main.py" "$PKG/opt/rclone-manager-desktop/install-zorin.sh" "$PKG/opt/rclone-manager-desktop/uninstall-zorin.sh"
           cat > "$PKG/DEBIAN/control" <<CONTROL
           Package: rclone-manager-desktop
@@ -154,7 +218,7 @@ jobs:
           unzip -t "dist-unified/rclone-manager-vps-v${VPS}.zip" >/dev/null
           unzip -t "dist-unified/rclone-manager-drive-link-copier-v${EXT}.zip" >/dev/null
           tar -tzf "dist-unified/rclone-manager-vps-v${VPS}.tar.gz" >/dev/null
-          dpkg-deb --info "dist-unified/rclone-manager-desktop-zorinos_${ZORIN}_all.deb" >/dev/null
+          dpkg-deb --info "$DEB" >/dev/null
 
           (
             cd dist-unified
@@ -197,7 +261,7 @@ jobs:
             gh release upload "$TAG" "${ASSETS[@]}" --clobber
             gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES" --latest
           else
-            gh release create "$TAG" "${ASSETS[@]}" --target "${GITHUB_SHA}" --title "$TITLE" --notes-file "$NOTES" --latest
+            gh release create "$TAG" "${ASSETS[@]}" --target "$GITHUB_SHA" --title "$TITLE" --notes-file "$NOTES" --latest
           fi
 
       - name: Verify published assets
