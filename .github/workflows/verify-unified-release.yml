@@ -1,0 +1,60 @@
+name: Verify unified release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-unified-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify release and every expected asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG='rclone-manager-v1.7.2'
+          EXPECTED=(
+            'rclone-manager-unraid-v1.7.2.zip'
+            'rclone-manager-desktop-zorinos-v1.3.2.zip'
+            'rclone-manager-desktop-zorinos_1.3.2_all.deb'
+            'rclone-manager-vps-v1.0.3.zip'
+            'rclone-manager-vps-v1.0.3.tar.gz'
+            'rclone-manager-drive-link-copier-v1.0.1.zip'
+            'SHA256SUMS.txt'
+          )
+
+          gh release view "$TAG" --json tagName,name,url,assets > /tmp/release.json
+          jq -r '.assets[].name' /tmp/release.json | sort > /tmp/assets.txt
+          for asset in "${EXPECTED[@]}"; do
+            grep -Fxq "$asset" /tmp/assets.txt || { echo "Missing release asset: $asset" >&2; exit 1; }
+          done
+
+          mkdir -p release-bundle
+          {
+            echo 'status=verified'
+            echo "tag=$TAG"
+            echo "verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo 'assets:'
+            cat /tmp/assets.txt
+          } > release-bundle/PUBLISHED-1.7.2.txt
+
+      - name: Commit verification marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add release-bundle/PUBLISHED-1.7.2.txt
+          git commit -m 'release: verify unified 1.7.2 assets'
+          git push origin HEAD:main
