@@ -1,6 +1,6 @@
 # Rclone Manager v1.9.0 — Release unificada
 
-Release estável que consolida o Media Pool / Drive Union e o Google Advanced Engine.
+Release estável que consolida o **Media Pool / Drive Union** e o **Google Advanced Engine**.
 
 ## Versões incluídas
 
@@ -35,9 +35,9 @@ Windows permanece em 1.1.2 Beta.
 - cache de `about.storageQuota`;
 - painel de usado/livre/total quando disponível.
 
-## Assets
+## Assets oficiais
 
-A release deve conter exatamente:
+A release contém:
 
 - `rclone-manager-unraid-v1.9.0.zip`
 - `rclone-manager-desktop-zorinos-v1.5.0.zip`
@@ -49,7 +49,9 @@ A release deve conter exatamente:
 
 ## Publicação reproduzível
 
-O workflow de release reconstrói snapshots completos em `release-bundle/source-full/`, valida checksums e a ausência de arquivos persistentes/sensíveis, testa os pacotes e publica uma única GitHub Release.
+O workflow oficial reconstrói primeiro as bases estáveis históricas do próprio repositório e depois aplica o delta final armazenado em `release-bundle/source-full/`. O delta final possui SHA-256 fixado em `8fcec580b4f5cbecc30120cd396f70af23931a2b91f9a490384a85e0a3b73a74`.
+
+Antes de publicar, o Actions verifica versões, sintaxe Python, integridade do delta, ausência de arquivos persistentes/sensíveis e integridade dos pacotes gerados. Depois da publicação, a lista de assets é conferida novamente.
 
 ## Notas de quota
 
