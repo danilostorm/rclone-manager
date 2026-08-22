@@ -31,7 +31,22 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq xz-utils patch zip unzip dpkg-dev
 
-      - name: Rebuild validated source trees
+      - name: Download and verify stable bases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/rclone-bases
+          gh release download rclone-manager-v1.7.8 \
+            --pattern 'rclone-manager-unraid-v1.7.8.zip' \
+            --pattern 'rclone-manager-desktop-zorinos-v1.3.8.zip' \
+            --pattern 'rclone-manager-vps-v1.0.9.zip' \
+            --pattern 'rclone-manager-drive-link-copier-v1.2.3.zip' \
+            --dir /tmp/rclone-bases
+          (cd /tmp/rclone-bases && sha256sum -c "$GITHUB_WORKSPACE/release-bundle/source-full/BASE-1.7.8-SHA256SUMS.txt")
+
+      - name: Rebuild validated 1.9.0 source trees
         shell: bash
         run: |
           set -euo pipefail
@@ -48,81 +63,34 @@ jobs:
           test "$VPS" = '1.2.0'
           test "$EXT" = '1.3.0'
 
-          BASE169='unraid-release/full/1.6.9.tar.xz.b64.part-'
-          U170='unraid-release/patches/1.7.0.patch.xz.b64'
-          U172='release-bundle/source/unraid-1.7.0-to-1.7.2.patch.xz.b64.part-'
-          U178='release-bundle/source/unraid-1.7.2-to-1.7.8.patch.xz.b64'
-          D130='desktop-release/patches/from-unraid-1.7.0-to-1.3.0.patch.xz.b64.part-'
-          D132='release-bundle/source/zorin-1.3.0-to-1.3.2.patch.xz.b64.part-'
-          D138='release-bundle/source/zorin-1.3.2-to-1.3.8.patch.xz.b64'
-          UV109='release-bundle/source/unraid-1.7.8-to-vps-1.0.9.patch.xz.b64'
-          EXT101='release-bundle/source/extension-1.0.1.zip.b64.part-'
-          EXT123='release-bundle/source/ext-1.0.1-to-1.2.3.patch.xz.b64.part-'
-          FINALPATCH='release-bundle/source-full/final-1.9.0-patches-small.b64.part-'
+          rm -rf build-unraid build-zorin build-vps build-ext package dist-unified /tmp/final-patches /tmp/base-unpack
+          mkdir -p build-unraid build-zorin build-vps build-ext dist-unified /tmp/final-patches /tmp/base-unpack/desktop /tmp/base-unpack/vps /tmp/base-unpack/ext
 
-          test -e "${BASE169}00"
-          test -f "$U170"
-          test -e "${U172}00"
-          test -f "$U178"
-          test -e "${D130}00"
-          test -e "${D132}00"
-          test -f "$D138"
-          test -f "$UV109"
-          test -e "${EXT101}00"
-          test -e "${EXT123}00"
-          test -e "${FINALPATCH}00"
+          # Unpack the four pinned stable bases.
+          unzip -q /tmp/rclone-bases/rclone-manager-unraid-v1.7.8.zip -d build-unraid
+          unzip -q /tmp/rclone-bases/rclone-manager-desktop-zorinos-v1.3.8.zip -d /tmp/base-unpack/desktop
+          unzip -q /tmp/rclone-bases/rclone-manager-vps-v1.0.9.zip -d /tmp/base-unpack/vps
+          unzip -q /tmp/rclone-bases/rclone-manager-drive-link-copier-v1.2.3.zip -d /tmp/base-unpack/ext
 
-          rm -rf build-base170 build-unraid172 build-unraid build-zorin build-vps build-ext package dist-unified
-          mkdir -p build-base170 build-unraid172 build-unraid build-zorin build-vps build-ext dist-unified /tmp/final-patches
+          DBASE="$(find /tmp/base-unpack/desktop -mindepth 1 -maxdepth 1 -type d | head -n1)"
+          VBASE="$(find /tmp/base-unpack/vps -mindepth 1 -maxdepth 1 -type d | head -n1)"
+          EBASE="$(find /tmp/base-unpack/ext -mindepth 1 -maxdepth 1 -type d | head -n1)"
+          test -n "$DBASE" && test -n "$VBASE" && test -n "$EBASE"
 
-          # Rebuild Unraid 1.7.0 base.
-          cat "${BASE169}"* | base64 -d > /tmp/unraid-1.6.9.tar.xz
-          tar -xJf /tmp/unraid-1.6.9.tar.xz -C build-base170
-          base64 -d "$U170" | xz -d > /tmp/unraid-1.7.0.patch
-          patch -d build-base170 -p1 --batch < /tmp/unraid-1.7.0.patch
-          test "$(tr -d '[:space:]' < build-base170/VERSION)" = '1.7.0'
-
-          # Rebuild Unraid 1.7.8.
-          cp -a build-base170/. build-unraid172/
-          cat "${U172}"* | base64 -d | xz -d > /tmp/unraid-1.7.2.patch
-          patch -d build-unraid172 -p1 --batch < /tmp/unraid-1.7.2.patch
-          test "$(tr -d '[:space:]' < build-unraid172/VERSION)" = '1.7.2'
-          cp -a build-unraid172/. build-unraid/
-          base64 -d "$U178" | xz -d > /tmp/unraid-1.7.8.patch
-          patch -d build-unraid -p1 --batch < /tmp/unraid-1.7.8.patch
-          test "$(tr -d '[:space:]' < build-unraid/VERSION)" = '1.7.8'
-
-          # Rebuild ZorinOS 1.3.8.
           ZSRC="build-zorin/rclone-manager-desktop-v${ZORIN}"
-          cp -a build-base170 "$ZSRC"
-          cat "${D130}"* | base64 -d | xz -d > /tmp/zorin-1.3.0.patch
-          patch -d "$ZSRC" -p1 --batch < /tmp/zorin-1.3.0.patch
-          cat "${D132}"* | base64 -d | xz -d > /tmp/zorin-1.3.2.patch
-          patch -d "$ZSRC" -p1 --batch < /tmp/zorin-1.3.2.patch
-          base64 -d "$D138" | xz -d > /tmp/zorin-1.3.8.patch
-          patch -d "$ZSRC" -p1 --batch < /tmp/zorin-1.3.8.patch
-          test "$(tr -d '[:space:]' < "$ZSRC/VERSION")" = '1.3.8'
-
-          # Rebuild VPS 1.0.9.
           VSRC="build-vps/rclone-manager-vps-v${VPS}"
-          cp -a build-unraid "$VSRC"
-          base64 -d "$UV109" | xz -d > /tmp/vps-1.0.9.patch
-          patch -d "$VSRC" -p1 --batch < /tmp/vps-1.0.9.patch
-          test "$(tr -d '[:space:]' < "$VSRC/VERSION")" = '1.0.9'
-
-          # Rebuild extension 1.2.3.
-          cat "${EXT101}"* | base64 -d > /tmp/ext-1.0.1.zip
-          unzip -q /tmp/ext-1.0.1.zip -d build-ext/base
-          EXTBASE="$(find build-ext/base -mindepth 1 -maxdepth 1 -type d | head -n1)"
-          test -n "$EXTBASE"
-          cat "${EXT123}"* | base64 -d | xz -d > /tmp/ext-1.2.3.patch
-          patch -d "$EXTBASE" -p1 --batch < /tmp/ext-1.2.3.patch
           EXTROOT="build-ext/rclone-manager-drive-link-copier-v${EXT}"
-          mv "$EXTBASE" "$EXTROOT"
+          mv "$DBASE" "$ZSRC"
+          mv "$VBASE" "$VSRC"
+          mv "$EBASE" "$EXTROOT"
+
+          test "$(tr -d '[:space:]' < build-unraid/VERSION)" = '1.7.8'
+          test "$(tr -d '[:space:]' < "$ZSRC/VERSION")" = '1.3.8'
+          test "$(tr -d '[:space:]' < "$VSRC/VERSION")" = '1.0.9'
           grep -Eq '"version"[[:space:]]*:[[:space:]]*"1\.2\.3"' "$EXTROOT/manifest.json"
 
-          # Apply the final validated 1.9.0 delta.
-          cat "${FINALPATCH}"* | base64 -d > /tmp/final-1.9.0-patches.tar.xz
+          # Reconstitute and verify the exact final source delta.
+          cat release-bundle/source-full/final-1.9.0-patches-small.b64.part-* | base64 -d > /tmp/final-1.9.0-patches.tar.xz
           echo '8fcec580b4f5cbecc30120cd396f70af23931a2b91f9a490384a85e0a3b73a74  /tmp/final-1.9.0-patches.tar.xz' | sha256sum -c -
           tar -xJf /tmp/final-1.9.0-patches.tar.xz -C /tmp/final-patches
 
@@ -131,6 +99,7 @@ jobs:
           patch -d "$VSRC" -p1 --batch < /tmp/final-patches/vps-1.0.9-to-1.2.0.patch
           patch -d "$EXTROOT" -p1 --batch < /tmp/final-patches/extension-1.2.3-to-1.3.0.patch
 
+          # Validate final versions.
           test "$(tr -d '[:space:]' < build-unraid/VERSION)" = "$UNRAID"
           test "$(tr -d '[:space:]' < "$ZSRC/VERSION")" = "$ZORIN"
           test "$(tr -d '[:space:]' < "$VSRC/VERSION")" = "$VPS"
@@ -285,6 +254,6 @@ jobs:
             "rclone-manager-vps-v${VPS}.tar.gz" \
             "rclone-manager-drive-link-copier-v${EXT}.zip" \
             "SHA256SUMS.txt"; do
-            grep -Fx "$NAME" /tmp/release-assets.txt >/dev/null || { echo "Missing release asset: $NAME" >&2; exit 1; }
+            grep -Fxq "$NAME" /tmp/release-assets.txt || { echo "Missing release asset: $NAME" >&2; exit 1; }
           done
           echo "Release $TAG verified with all expected assets."
