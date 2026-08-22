@@ -1,17 +1,25 @@
-# Cadeia de código-fonte — Rclone Manager 1.9.0
+# Código-fonte reproduzível — Rclone Manager 1.9.0
 
-Este diretório contém o **delta final validado** que transforma as últimas bases estáveis publicadas nas versões finais da release 1.9.0.
+Este diretório torna a release **1.9.0 autocontida** no próprio repositório.
 
-Bases usadas:
+## 1. Snapshot das bases validadas
 
-- Unraid `1.7.8` -> `1.9.0`
-- ZorinOS Desktop `1.3.8` -> `1.5.0`
-- VPS/Linux `1.0.9` -> `1.2.0`
-- Drive Link Copier `1.2.3` -> `1.3.0`
+`rclone-manager-bases-1.7.8.tar.xz` contém, sem dados persistentes de usuário:
 
-As bases anteriores continuam reproduzíveis pelos arquivos históricos já versionados em `unraid-release/`, `desktop-release/`, `vps-release/` e `release-bundle/source/`.
+- Unraid `1.7.8`;
+- ZorinOS Desktop `1.3.8`;
+- VPS/Linux `1.0.9`;
+- Drive Link Copier `1.2.3`.
 
-## Reconstruir o delta final
+SHA-256:
+
+```text
+b518ae51b5a87ce306fb6f000c042b9e5767ae52c26d4b0e020b0a263e819268
+```
+
+## 2. Delta final
+
+As partes `final-1.9.0-patches-small.b64.part-*` reconstituem o arquivo `final-1.9.0-patches.tar.xz`.
 
 ```bash
 cat final-1.9.0-patches-small.b64.part-* | base64 -d > final-1.9.0-patches.tar.xz
@@ -24,15 +32,13 @@ SHA-256 esperado:
 8fcec580b4f5cbecc30120cd396f70af23931a2b91f9a490384a85e0a3b73a74
 ```
 
-O arquivo contém quatro patches:
+O delta contém:
 
-```text
-unraid-1.7.8-to-1.9.0.patch
-desktop-1.3.8-to-1.5.0.patch
-vps-1.0.9-to-1.2.0.patch
-extension-1.2.3-to-1.3.0.patch
-```
+- `unraid-1.7.8-to-1.9.0.patch`
+- `desktop-1.3.8-to-1.5.0.patch`
+- `vps-1.0.9-to-1.2.0.patch`
+- `extension-1.2.3-to-1.3.0.patch`
 
-O workflow `.github/workflows/publish-unified-release.yml` reconstrói primeiro as quatro bases estáveis a partir do histórico do próprio repositório, valida o SHA-256 deste delta, aplica os patches e só então gera os assets da GitHub Release.
+O GitHub Actions valida os dois SHA-256, aplica os quatro patches, testa versões/sintaxe/arquivos sensíveis e somente então publica os pacotes finais.
 
-Nenhuma credencial, `.env`, `rclone.conf`, banco, JSON de Service Account, chave privada, cache ou backup faz parte desta cadeia de código-fonte.
+Nenhuma GitHub Release antiga é necessária para reconstruir a 1.9.0.
