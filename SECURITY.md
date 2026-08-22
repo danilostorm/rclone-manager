@@ -15,9 +15,9 @@ Nunca publique neste repositório ou em uma GitHub Release:
 - arquivos `.pem`, `.key` ou qualquer chave privada;
 - cache e temporários contendo dados do usuário.
 
-## Source snapshots
+## Código de release
 
-Os snapshots completos em `release-bundle/source-full/` contêm somente código e arquivos necessários para reconstrução da release. O workflow de publicação verifica nomes de arquivos sensíveis antes de empacotar os artefatos.
+A cadeia reproduzível usa somente bases históricas versionadas e patches de código em `release-bundle/source-full/`. O workflow de publicação verifica nomes de arquivos sensíveis antes de empacotar os artefatos.
 
 ## eclone / gclone
 
@@ -25,7 +25,7 @@ Binários externos como eclone/gclone não são versionados junto com credenciai
 
 ## Service Accounts
 
-Os JSONs de Service Account devem permanecer somente na instalação do operador, com permissões restritas. Nunca os adicione aos snapshots de release ou a commits.
+Os JSONs de Service Account devem permanecer somente na instalação do operador, com permissões restritas. Nunca os adicione à cadeia de release, aos pacotes públicos ou a commits.
 
 ## Incidente de segredo
 
