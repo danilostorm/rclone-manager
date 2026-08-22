@@ -37,8 +37,6 @@ Windows permanece em 1.1.2 Beta.
 
 ## Assets oficiais
 
-A release contém:
-
 - `rclone-manager-unraid-v1.9.0.zip`
 - `rclone-manager-desktop-zorinos-v1.5.0.zip`
 - `rclone-manager-desktop-zorinos_1.5.0_all.deb`
@@ -47,13 +45,23 @@ A release contém:
 - `rclone-manager-drive-link-copier-v1.3.0.zip`
 - `SHA256SUMS.txt`
 
-## Publicação reproduzível
+## Publicação reproduzível e autocontida
 
-O workflow oficial reconstrói primeiro as bases estáveis históricas do próprio repositório e depois aplica o delta final armazenado em `release-bundle/source-full/`. O delta final possui SHA-256 fixado em `8fcec580b4f5cbecc30120cd396f70af23931a2b91f9a490384a85e0a3b73a74`.
+O repositório contém `release-bundle/source-full/rclone-manager-bases-1.7.8.tar.xz`, snapshot das quatro bases validadas. SHA-256:
 
-Antes de publicar, o Actions verifica versões, sintaxe Python, integridade do delta, ausência de arquivos persistentes/sensíveis e integridade dos pacotes gerados. Depois da publicação, a lista de assets é conferida novamente.
+```text
+b518ae51b5a87ce306fb6f000c042b9e5767ae52c26d4b0e020b0a263e819268
+```
 
-A publicação só é considerada concluída quando o verificador independente confirma os sete assets e registra `release-bundle/PUBLISHED-1.9.0.txt` no branch `main`. Cada execução do publicador também é registrada em `release-bundle/PUBLISH-RUN-1.9.0.txt`, inclusive em caso de falha.
+O delta final é reconstruído de `final-1.9.0-patches-small.b64.part-*`. SHA-256:
+
+```text
+8fcec580b4f5cbecc30120cd396f70af23931a2b91f9a490384a85e0a3b73a74
+```
+
+O Actions valida ambos, aplica os quatro patches, verifica versões, sintaxe Python e ausência de arquivos sensíveis, gera os pacotes e publica a Release. A reconstrução não depende de nenhuma GitHub Release anterior.
+
+A publicação só é considerada concluída quando o verificador independente confirma os sete assets e registra `release-bundle/PUBLISHED-1.9.0.txt` no branch `main`. Cada execução do publicador também é registrada em `release-bundle/PUBLISH-RUN-1.9.0.txt`.
 
 ## Notas de quota
 
