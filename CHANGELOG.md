@@ -1,5 +1,25 @@
 # Changelog
 
+## Unraid 1.7.0
+
+- adiciona **Backup Completo Portátil v2** com banco, Google Drive, rclone, credenciais OAuth/tokens e Microsoft/OneDrive;
+- adiciona restauração/migração das configurações completas;
+- preserva correções de **Compartilhados comigo** e fallback Microsoft Graph `/content`;
+- mantém processamento OneDrive arquivo por arquivo e limpeza após upload confirmado.
+
+## ZorinOS Desktop 1.3.0
+
+- adiciona **Backup Completo Portátil v2** compatível com Unraid e VPS;
+- inclui Google Drive, rclone, credenciais OAuth/tokens, Microsoft/OneDrive, banco, histórico e configurações;
+- mantém importação OneDrive compartilhada e retomada validadas.
+
+## VPS 1.0.1
+
+- edição Linux/VPS para instalação em `/opt/rclone-manager`;
+- compatível com restauração do Backup Completo Portátil v2;
+- inclui importação OneDrive → Google Drive com as correções validadas;
+- preparada para execução persistente em servidor e Oracle Cloud/Ubuntu.
+
 ## Unraid 1.6.9
 
 - corrige HTTP 400 por CSRF na análise/importação OneDrive;
