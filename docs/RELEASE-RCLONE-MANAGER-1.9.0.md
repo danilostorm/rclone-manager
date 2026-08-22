@@ -53,6 +53,8 @@ O workflow oficial reconstrói primeiro as bases estáveis históricas do própr
 
 Antes de publicar, o Actions verifica versões, sintaxe Python, integridade do delta, ausência de arquivos persistentes/sensíveis e integridade dos pacotes gerados. Depois da publicação, a lista de assets é conferida novamente.
 
+A publicação só é considerada concluída quando o verificador independente confirma os sete assets e registra `release-bundle/PUBLISHED-1.9.0.txt` no branch `main`.
+
 ## Notas de quota
 
 Service Accounts ajudam somente nos limites que podem ser distribuídos entre identidades. Limites de Shared Drive, proprietário de arquivo, organização ou outras políticas do Google não são removidos pelo Manager.
