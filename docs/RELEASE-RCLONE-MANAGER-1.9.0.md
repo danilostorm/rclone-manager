@@ -63,6 +63,8 @@ O Actions valida ambos, aplica os quatro patches, verifica versões, sintaxe Pyt
 
 A publicação só é considerada concluída quando o verificador independente confirma os sete assets e registra `release-bundle/PUBLISHED-1.9.0.txt` no branch `main`. Cada execução do publicador também é registrada em `release-bundle/PUBLISH-RUN-1.9.0.txt`.
 
+Fonte de build oficial: snapshot base autocontido + delta final versionados no próprio `main`.
+
 ## Notas de quota
 
 Service Accounts ajudam somente nos limites que podem ser distribuídos entre identidades. Limites de Shared Drive, proprietário de arquivo, organização ou outras políticas do Google não são removidos pelo Manager.
