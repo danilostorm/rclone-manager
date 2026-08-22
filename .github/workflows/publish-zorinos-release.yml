@@ -6,7 +6,8 @@ on:
     paths:
       - 'desktop-release/VERSION'
       - 'desktop-release/patches/**'
-      - 'dist/zorinos/**'
+      - 'unraid-release/patches/**'
+      - 'unraid-release/full/**'
       - 'docs/RELEASE-*.md'
       - '.github/workflows/publish-zorinos-release.yml'
   workflow_dispatch:
@@ -27,74 +28,41 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(tr -d '[:space:]' < desktop-release/VERSION)"
-          test -n "$VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=zorinos-v$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare source package
+      - name: Rebuild validated source
         shell: bash
         run: |
           set -euo pipefail
           VERSION='${{ steps.version.outputs.version }}'
-          ZIP="dist/zorinos/rclone-manager-desktop-zorinos-v${VERSION}.zip"
-          SHA="dist/zorinos/rclone-manager-desktop-zorinos-v${VERSION}.sha256"
-
-          if [ ! -f "$ZIP" ]; then
-            BASE_VERSION="1.0.0"
-            BASE_ZIP="dist/zorinos/rclone-manager-desktop-zorinos-v${BASE_VERSION}.zip"
-            PATCH="desktop-release/patches/${VERSION}.patch"
-            PATCH_XZ_B64="${PATCH}.xz.b64"
-            PATCH_TMP="/tmp/rclone-manager-zorinos-${VERSION}.patch"
-
-            test -f "$BASE_ZIP"
-            if [ -f "$PATCH" ]; then
-              cp "$PATCH" "$PATCH_TMP"
-            elif [ -f "$PATCH_XZ_B64" ]; then
-              base64 -d "$PATCH_XZ_B64" | xz -d > "$PATCH_TMP"
-            else
-              PARTS=("${PATCH}.part-"*)
-              test -e "${PARTS[0]}"
-              cat "${PATCH}.part-"* > "$PATCH_TMP"
-            fi
-
-            rm -rf build-patch
-            mkdir -p build-patch
-            unzip -q "$BASE_ZIP" -d build-patch
-            mv "build-patch/rclone-manager-desktop-v${BASE_VERSION}" "build-patch/rclone-manager-desktop-v${VERSION}"
-            (
-              cd "build-patch/rclone-manager-desktop-v${VERSION}"
-              patch -p1 < "$PATCH_TMP"
-            )
-            (
-              cd build-patch
-              zip -qr "$GITHUB_WORKSPACE/$ZIP" "rclone-manager-desktop-v${VERSION}"
-            )
-          fi
-
-          (
-            cd dist/zorinos
-            sha256sum "rclone-manager-desktop-zorinos-v${VERSION}.zip" > "rclone-manager-desktop-zorinos-v${VERSION}.sha256"
-          )
-
-          rm -rf build-src package
-          mkdir -p build-src
-          unzip -q "$ZIP" -d build-src
-          test -d "build-src/rclone-manager-desktop-v${VERSION}"
-
-      - name: Security sanity check
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION='${{ steps.version.outputs.version }}'
+          BASE_PREFIX='unraid-release/full/1.6.9.tar.xz.b64.part-'
+          U_PATCH='unraid-release/patches/1.7.0.patch.xz.b64'
+          D_PATCH="desktop-release/patches/from-unraid-1.7.0-to-${VERSION}.patch.xz.b64"
+          test -e "${BASE_PREFIX}00"
+          test -f "$U_PATCH"
+          test -f "$D_PATCH"
+          rm -rf build-base build-src package
+          mkdir -p build-base build-src dist/zorinos
+          cat "${BASE_PREFIX}"* | base64 -d > /tmp/base-unraid.tar.xz
+          tar -xJf /tmp/base-unraid.tar.xz -C build-base
+          base64 -d "$U_PATCH" | xz -d > /tmp/unraid.patch
+          patch -d build-base -p1 < /tmp/unraid.patch
           SRC="build-src/rclone-manager-desktop-v${VERSION}"
+          cp -a build-base "$SRC"
+          base64 -d "$D_PATCH" | xz -d > /tmp/desktop.patch
+          patch -d "$SRC" -p1 < /tmp/desktop.patch
+          test "$(tr -d '[:space:]' < "$SRC/VERSION")" = "$VERSION"
           if find "$SRC" -type f \( -name '.env' -o -name 'rclone.conf' -o -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
-            echo 'Sensitive runtime file found in release source.' >&2
-            exit 1
+            echo 'Sensitive runtime file found.' >&2; exit 1
           fi
           if find "$SRC" -type d -name '__pycache__' | grep -q .; then
-            echo '__pycache__ must not be shipped.' >&2
-            exit 1
+            echo '__pycache__ must not be shipped.' >&2; exit 1
           fi
+          ZIP="dist/zorinos/rclone-manager-desktop-zorinos-v${VERSION}.zip"
+          rm -f "$ZIP" "${ZIP%.zip}.sha256"
+          (cd build-src && zip -qr "$GITHUB_WORKSPACE/$ZIP" "rclone-manager-desktop-v${VERSION}")
+          (cd dist/zorinos && sha256sum "rclone-manager-desktop-zorinos-v${VERSION}.zip" > "rclone-manager-desktop-zorinos-v${VERSION}.sha256")
 
       - name: Build Debian package
         shell: bash
@@ -102,15 +70,13 @@ jobs:
           set -euo pipefail
           VERSION='${{ steps.version.outputs.version }}'
           SRC="build-src/rclone-manager-desktop-v${VERSION}"
-          PKG="package"
+          PKG=package
           DEB="dist/zorinos/rclone-manager-desktop-zorinos_${VERSION}_all.deb"
-
           mkdir -p "$PKG/DEBIAN" "$PKG/opt/rclone-manager-desktop" "$PKG/usr/bin" "$PKG/usr/share/applications"
           cp -a "$SRC"/. "$PKG/opt/rclone-manager-desktop/"
           cp "$SRC/packaging/rclone-manager-desktop" "$PKG/usr/bin/rclone-manager-desktop"
           cp "$SRC/packaging/rclone-manager-desktop.desktop" "$PKG/usr/share/applications/rclone-manager-desktop.desktop"
           chmod +x "$PKG/usr/bin/rclone-manager-desktop" "$PKG/opt/rclone-manager-desktop/desktop_main.py" "$PKG/opt/rclone-manager-desktop/install-zorin.sh" "$PKG/opt/rclone-manager-desktop/uninstall-zorin.sh"
-
           cat > "$PKG/DEBIAN/control" <<CONTROL
           Package: rclone-manager-desktop
           Version: ${VERSION}
@@ -120,10 +86,8 @@ jobs:
           Maintainer: Storm Projects
           Depends: python3, python3-flask, python3-requests, python3-waitress, python3-gi, gir1.2-gtk-3.0, gir1.2-webkit2-4.1, rclone, fuse3, ca-certificates
           Description: Rclone Manager Desktop for ZorinOS
-           Google Drive multi-account mounts, transfers, Shared with me browser,
-           uploads, speedtest, checkpoints, quota estimation, backup/restore and local GTK/WebKit UI.
+           Google Drive multi-account manager, OneDrive importer, portable backup/restore and GTK/WebKit UI.
           CONTROL
-
           cat > "$PKG/DEBIAN/postinst" <<'POSTINST'
           #!/bin/sh
           set -e
@@ -131,19 +95,14 @@ jobs:
           update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
           exit 0
           POSTINST
-
           cat > "$PKG/DEBIAN/prerm" <<'PRERM'
           #!/bin/sh
           pkill -f '/opt/rclone-manager-desktop/desktop_main.py' 2>/dev/null || true
           exit 0
           PRERM
-
           chmod 755 "$PKG/DEBIAN/postinst" "$PKG/DEBIAN/prerm"
           dpkg-deb --build --root-owner-group "$PKG" "$DEB"
-          (
-            cd dist/zorinos
-            sha256sum "rclone-manager-desktop-zorinos_${VERSION}_all.deb" > "rclone-manager-desktop-zorinos_${VERSION}_all.deb.sha256"
-          )
+          (cd dist/zorinos && sha256sum "rclone-manager-desktop-zorinos_${VERSION}_all.deb" > "rclone-manager-desktop-zorinos_${VERSION}_all.deb.sha256")
 
       - name: Create or update GitHub Release
         env:
@@ -155,20 +114,11 @@ jobs:
           TAG='${{ steps.version.outputs.tag }}'
           ZIP="dist/zorinos/rclone-manager-desktop-zorinos-v${VERSION}.zip"
           DEB="dist/zorinos/rclone-manager-desktop-zorinos_${VERSION}_all.deb"
-          TITLE="Rclone Manager Desktop for ZorinOS v${VERSION}"
           NOTES="docs/RELEASE-${VERSION}.md"
-
+          TITLE="Rclone Manager Desktop for ZorinOS v${VERSION}"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$DEB" "${DEB}.sha256" "$ZIP" "${ZIP}.sha256" --clobber
-            if [ -f "$NOTES" ]; then
-              gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES"
-            fi
+            gh release upload "$TAG" "$DEB" "${DEB}.sha256" "$ZIP" "${ZIP%.zip}.sha256" --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES"
           else
-            if [ -f "$NOTES" ]; then
-              gh release create "$TAG" "$DEB" "${DEB}.sha256" "$ZIP" "${ZIP}.sha256" --title "$TITLE" --notes-file "$NOTES"
-            else
-              gh release create "$TAG" "$DEB" "${DEB}.sha256" "$ZIP" "${ZIP}.sha256" \
-                --title "$TITLE" \
-                --notes "Rclone Manager Desktop ${VERSION} para ZorinOS/Ubuntu. Instale com: sudo apt install ./rclone-manager-desktop-zorinos_${VERSION}_all.deb"
-            fi
+            gh release create "$TAG" "$DEB" "${DEB}.sha256" "$ZIP" "${ZIP%.zip}.sha256" --title "$TITLE" --notes-file "$NOTES"
           fi
