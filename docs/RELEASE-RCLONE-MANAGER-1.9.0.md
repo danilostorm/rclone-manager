@@ -53,7 +53,7 @@ O workflow oficial reconstrói primeiro as bases estáveis históricas do própr
 
 Antes de publicar, o Actions verifica versões, sintaxe Python, integridade do delta, ausência de arquivos persistentes/sensíveis e integridade dos pacotes gerados. Depois da publicação, a lista de assets é conferida novamente.
 
-A publicação só é considerada concluída quando o verificador independente confirma os sete assets e registra `release-bundle/PUBLISHED-1.9.0.txt` no branch `main`.
+A publicação só é considerada concluída quando o verificador independente confirma os sete assets e registra `release-bundle/PUBLISHED-1.9.0.txt` no branch `main`. Cada execução do publicador também é registrada em `release-bundle/PUBLISH-RUN-1.9.0.txt`, inclusive em caso de falha.
 
 ## Notas de quota
 
