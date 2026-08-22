@@ -1,0 +1,63 @@
+name: Publish VPS release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'vps-release/VERSION'
+      - 'vps-release/full/**'
+      - 'docs/RELEASE-VPS-*.md'
+      - '.github/workflows/publish-vps-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '[:space:]' < vps-release/VERSION)"
+          test -n "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=vps-v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Rebuild release ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION='${{ steps.version.outputs.version }}'
+          PART_GLOB="vps-release/full/${VERSION}.zip.b64.part-*"
+          ZIP="rclone-manager-vps-v${VERSION}.zip"
+          test -e $(echo $PART_GLOB | awk '{print $1}')
+          cat $PART_GLOB | base64 -d > "$ZIP"
+          unzip -t "$ZIP" >/dev/null
+          sha256sum "$ZIP" > "rclone-manager-vps-v${VERSION}.sha256"
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION='${{ steps.version.outputs.version }}'
+          TAG='${{ steps.version.outputs.tag }}'
+          ZIP="rclone-manager-vps-v${VERSION}.zip"
+          SHA="rclone-manager-vps-v${VERSION}.sha256"
+          TITLE="Rclone Manager VPS v${VERSION}"
+          NOTES="docs/RELEASE-VPS-${VERSION}.md"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ZIP" "$SHA" --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES"
+          else
+            gh release create "$TAG" "$ZIP" "$SHA" --title "$TITLE" --notes-file "$NOTES"
+          fi
