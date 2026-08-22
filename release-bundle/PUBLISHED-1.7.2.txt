@@ -1,0 +1,11 @@
+status=verified
+tag=rclone-manager-v1.7.2
+verified_at=2026-08-22T15:31:19Z
+assets:
+SHA256SUMS.txt
+rclone-manager-desktop-zorinos-v1.3.2.zip
+rclone-manager-desktop-zorinos_1.3.2_all.deb
+rclone-manager-drive-link-copier-v1.0.1.zip
+rclone-manager-unraid-v1.7.2.zip
+rclone-manager-vps-v1.0.3.tar.gz
+rclone-manager-vps-v1.0.3.zip
