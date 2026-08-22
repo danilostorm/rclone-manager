@@ -1,107 +1,138 @@
 # Rclone Manager
 
-Gerenciador de múltiplas contas Google Drive e importação de links/OneDrive para **Unraid**, **ZorinOS Desktop**, **Linux/VPS** e **Windows 10/11**, com extensão Chrome/Chromium integrada ao Manager.
+Gerenciador de múltiplas contas Google Drive, transferências, uploads e bibliotecas de mídia para **Unraid**, **ZorinOS Desktop** e **Linux/VPS**, com extensão Chrome/Chromium integrada.
 
 ## Versões atuais
 
 | Edição | Versão | Status |
 |---|---:|---|
-| **Unraid** | **1.7.8** | **Stable** |
-| **ZorinOS Desktop** | **1.3.8** | **Stable** |
-| **Linux / VPS** | **1.0.9** | **Stable** |
-| **Drive Link Copier (Chrome/Chromium)** | **1.2.3** | **Stable** |
+| **Unraid** | **1.9.0** | Stable |
+| **ZorinOS Desktop** | **1.5.0** | Stable |
+| **Linux / VPS** | **1.2.0** | Stable |
+| **Drive Link Copier** | **1.3.0** | Stable |
 | **Windows 10/11** | **1.1.2** | Beta |
 
-## Download
+A release unificada é **`rclone-manager-v1.9.0`**.
 
-Os downloads atuais ficam juntos em **uma única GitHub Release**:
+## Destaques da 1.9.0
 
-**`rclone-manager-v1.7.8`**
+### Media Pool / Drive Union para Jellyfin e Plex
 
-Ela contém o ZIP do Unraid, ZIP e `.deb` do ZorinOS, ZIP e TAR.GZ da VPS, a extensão Drive Link Copier e `SHA256SUMS.txt`.
+O Manager pode reunir pastas de várias contas Google em um único mount virtual, sem mover nem copiar o conteúdo original.
 
-## Principais recursos
+Fluxo:
+
+```text
+Conta Anime 01 ── pasta /Animes ──┐
+Conta Anime 02 ── pasta /Animes ──┤
+Conta Filmes   ── pasta /Filmes ──┤
+Conta Séries   ── pasta /Series ──┘
+                                  ↓
+                         Media Pool / Union
+                                  ↓
+                  /mnt/.../_media-pools/stormflix
+                                  ↓
+                         Jellyfin / Plex
+```
+
+Recursos:
+
+- seleção de conta e navegação por pastas antes de adicionar ao Pool;
+- múltiplas pastas da mesma conta;
+- categorias virtuais como `Animes`, `Filmes`, `Series` e `Desenhos`;
+- várias origens podem compartilhar a mesma categoria;
+- único ponto de montagem para Jellyfin/Plex;
+- status por origem e estado degradado quando uma origem falha;
+- espaço usado/livre agregado quando a API do Google fornece cota;
+- localizador de arquivo para descobrir a conta/pasta física;
+- roteamento opcional de novos uploads por categoria e espaço livre;
+- o roteamento de upload **não participa do streaming** e pode ficar desativado em bibliotecas somente leitura.
+
+Detalhes: [docs/MEDIA-POOL.md](docs/MEDIA-POOL.md).
+
+### Google Advanced: eclone / gclone + Service Accounts
+
+O Manager integra um motor Google avançado para cópias e operações server-side. Quando configurado, prefere **eclone**, aceita **gclone** como fallback e mantém a Drive API como fallback final.
+
+Inclui:
+
+- rotação de Service Accounts;
+- Rolling SA;
+- escolha inicial aleatória;
+- preload de serviços;
+- blacklist temporária após limite;
+- anti-thrashing;
+- cache de `about.storageQuota`;
+- usado/livre/total por conta quando disponível.
+
+O eclone é um projeto terceiro e é baixado do repositório upstream configurado pelo Manager; não é incorporado ao código deste repositório.
+
+Detalhes e limitações: [docs/GOOGLE-ADVANCED-ECLONE.md](docs/GOOGLE-ADVANCED-ECLONE.md).
+
+## Outros recursos
 
 - múltiplas contas Google Drive;
 - mounts via rclone/FUSE;
 - Centro de Transferências entre Drives;
 - acesso a **Compartilhados comigo**;
-- importação OneDrive → Google Drive;
-- fallback Microsoft Graph `/content` quando necessário;
-- processamento econômico de disco: **download de um arquivo → upload confirmado → limpeza → próximo arquivo**;
-- **Backup Completo Portátil v2** com banco, contas, rclone, credenciais OAuth/tokens e Microsoft/OneDrive;
+- importação OneDrive/SharePoint → Google Drive;
+- fallback Microsoft Graph `/content`;
+- download por arquivo, upload confirmado e limpeza do temporário;
+- Backup Completo Portátil v2;
 - Centro de Upload com sessões resumíveis;
-- Speedtest integrado com histórico;
-- **Drive Link API v8** integrada à extensão;
-- detecção de Google Drive, OneDrive/SharePoint, MediaFire, Dropbox, Pixeldrain e links HTTP/HTTPS diretos suportados;
-- Google Drive → Google Drive via API oficial `files.copy`, sem armazenar o conteúdo localmente;
-- confirmação do novo `fileId` e da pasta de destino antes de marcar sucesso;
-- painel **API / Extensão** com origem, destino, progresso, tráfego, temporário e controles;
-- pausa, retomada, cancelamento e exclusão de tarefas;
-- **fila persistente FIFO** com prioridade por “Iniciar agora” e execução serial;
-- **Tentar novamente** e retorno ao fim da fila para tarefas com erro corrigível;
-- criação e exclusão de pastas Google Drive pela extensão;
-- carregamento automático das pastas ao trocar a conta Google de destino;
-- destino explicitamente confirmado antes de iniciar uma importação.
+- Speedtest com histórico;
+- Drive Link API integrada à extensão;
+- Google Drive → Google Drive via API oficial `files.copy` quando aplicável;
+- fila persistente, pausa, retomada, cancelamento e retry;
+- Google Advanced Engine com eclone/gclone e Service Accounts.
 
-## Unraid 1.7.8
+## Código-fonte
 
-Atualização:
+Os snapshots completos e reproduzíveis da versão estável ficam em `release-bundle/source-full/`, divididos em partes Base64 para manter o histórico Git simples. O diretório inclui checksums e instruções de reconstrução.
+
+Os pacotes da GitHub Release são reconstruídos diretamente desses snapshots pelo workflow `.github/workflows/publish-unified-release.yml`. O código completo de cada edição também está presente dentro dos ZIPs/TAR.GZ publicados na Release.
+
+## Atualização
+
+### VPS / Oracle Cloud
+
+```bash
+cd /opt
+unzip -q rclone-manager-vps-v1.2.0.zip
+cd rclone-manager-vps-v1.2.0
+sudo ./install.sh
+```
+
+A instalação padrão é `/opt/rclone-manager` e o instalador preserva `.env`, `data/`, `cache/` e `backups/`.
+
+### Unraid
+
+Extraia o ZIP por cima de `/mnt/user/appdata/rclone-manager`, preservando `.env`, `data/` e `cache/`, e execute:
 
 ```bash
 cd /mnt/user/appdata/rclone-manager
-# extraia o pacote por cima preservando .env, data/ e cache/
 chmod +x *.sh scripts/*.sh
 ./update.sh
 ```
 
-## ZorinOS Desktop 1.3.8
+### ZorinOS Desktop
 
 ```bash
-sudo apt install ./rclone-manager-desktop-zorinos_1.3.8_all.deb
+sudo apt install ./rclone-manager-desktop-zorinos_1.5.0_all.deb
 ```
 
-Os dados persistentes do usuário são preservados durante a atualização.
-
-## Linux / VPS 1.0.9
-
-Preparada para Ubuntu/Oracle Cloud com instalação padrão em `/opt/rclone-manager`.
-
-```bash
-cd /tmp
-rm -rf rclone-vps-109
-mkdir -p rclone-vps-109
-cd rclone-vps-109
-unzip /opt/rclone-manager-vps-v1.0.9.zip
-cd rclone-manager-vps-v1.0.9
-chmod +x install.sh update.sh rollback.sh backup.sh uninstall.sh
-chmod +x scripts/*.sh
-sudo ./install.sh
-```
-
-O instalador preserva `.env`, `data/`, `cache/` e `backups/` da instalação existente.
-
-## Drive Link Copier 1.2.3
-
-1. Extraia `rclone-manager-drive-link-copier-v1.2.3.zip`.
-2. Abra `chrome://extensions` no Chrome/Chromium.
-3. Ative **Modo do desenvolvedor** e escolha **Carregar sem compactação**.
-4. Em **Configuração da extensão**, informe a URL HTTPS do Manager e a API Key gerada no Manager.
-
-A extensão envia apenas os links/IDs e o destino escolhido. Credenciais Google, refresh tokens e Client Secrets permanecem no Manager.
-
-## Backup Completo Portátil v2
-
-O backup portátil pode incluir as configurações necessárias para restauração/migração, inclusive Google Drive, rclone, credenciais OAuth/tokens, Microsoft/OneDrive, banco e histórico.
-
-**Atenção:** um backup completo contém credenciais e tokens sensíveis. Não publique nem compartilhe esse arquivo.
-
-## Windows 10/11
-
-A edição Windows continua em **1.1.2 Beta** até concluir a validação específica de mount/WinFsp e instalador em Windows real.
+Veja [docs/UPDATES.md](docs/UPDATES.md) para rollback e verificações.
 
 ## Segurança
 
-Este repositório **não inclui dados reais de instalação**: Client Secret, tokens OAuth, `rclone.conf`, bancos SQLite, `.env`, senhas, API Keys, webhooks ou backups.
+Este repositório não deve conter dados reais de instalação, incluindo `.env`, Client Secret, tokens OAuth, `rclone.conf`, bancos SQLite, chaves privadas, API Keys ou backups.
 
-Veja [SECURITY.md](SECURITY.md) e [docs/RELEASE-RCLONE-MANAGER-1.7.8.md](docs/RELEASE-RCLONE-MANAGER-1.7.8.md).
+Veja [SECURITY.md](SECURITY.md).
+
+## Terceiros
+
+- [rclone](https://github.com/rclone/rclone)
+- [eclone](https://github.com/ebadenes/eclone)
+- gclone, quando instalado separadamente pelo operador
+
+O uso e a distribuição de cada componente terceiro seguem as respectivas licenças upstream.
