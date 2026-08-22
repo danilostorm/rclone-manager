@@ -15,7 +15,8 @@
 - integra Google Advanced Engine com eclone/gclone + Service Accounts;
 - adiciona Rolling SA, escolha inicial aleatória, preload, blacklist e anti-thrashing;
 - mantém fallback para Google Drive API;
-- publica snapshots completos e verificáveis em `release-bundle/source-full/` e passa a reconstruir a release diretamente deles;
+- publica uma cadeia reproduzível de código-fonte: bases históricas versionadas + delta final 1.9.0 com SHA-256 fixado;
+- o GitHub Actions reconstrói as bases, aplica o delta final, valida o código e só então publica os pacotes;
 - preserva importação OneDrive/SharePoint, Centro de Upload, Transferências, Backup Portátil, Speedtest e Drive Link API.
 
 ## Release unificada 1.7.8
