@@ -86,11 +86,13 @@ Detalhes e limitações: [docs/GOOGLE-ADVANCED-ECLONE.md](docs/GOOGLE-ADVANCED-E
 - fila persistente, pausa, retomada, cancelamento e retry;
 - Google Advanced Engine com eclone/gclone e Service Accounts.
 
-## Código-fonte
+## Código-fonte e reprodução da release
 
-Os snapshots completos e reproduzíveis da versão estável ficam em `release-bundle/source-full/`, divididos em partes Base64 para manter o histórico Git simples. O diretório inclui checksums e instruções de reconstrução.
+A release estável é reproduzível a partir do próprio histórico Git. As bases anteriores permanecem versionadas em `unraid-release/`, `desktop-release/`, `vps-release/` e `release-bundle/source/`. O diretório `release-bundle/source-full/` contém o delta final validado da 1.9.0, dividido em partes Base64 e protegido por SHA-256.
 
-Os pacotes da GitHub Release são reconstruídos diretamente desses snapshots pelo workflow `.github/workflows/publish-unified-release.yml`. O código completo de cada edição também está presente dentro dos ZIPs/TAR.GZ publicados na Release.
+O workflow `.github/workflows/publish-unified-release.yml` reconstrói as bases, valida o delta final, aplica os patches, checa versões, sintaxe e arquivos sensíveis, empacota cada edição e publica a GitHub Release. O código completo de cada edição também fica dentro dos ZIPs/TAR.GZ publicados.
+
+Veja [docs/SOURCE-SNAPSHOTS.md](docs/SOURCE-SNAPSHOTS.md) para a cadeia completa de reconstrução.
 
 ## Atualização
 
@@ -125,7 +127,7 @@ Veja [docs/UPDATES.md](docs/UPDATES.md) para rollback e verificações.
 
 ## Segurança
 
-Este repositório não deve conter dados reais de instalação, incluindo `.env`, Client Secret, tokens OAuth, `rclone.conf`, bancos SQLite, chaves privadas, API Keys ou backups.
+Este repositório não deve conter dados reais de instalação, incluindo `.env`, Client Secret, tokens OAuth, `rclone.conf`, bancos SQLite, JSONs de Service Account, chaves privadas, API Keys ou backups.
 
 Veja [SECURITY.md](SECURITY.md).
 
