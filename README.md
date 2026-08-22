@@ -1,22 +1,22 @@
 # Rclone Manager
 
-Gerenciador de múltiplas contas Google Drive e importação OneDrive para **Unraid**, **ZorinOS Desktop**, **Linux/VPS** e **Windows 10/11**, com extensão Chrome/Chromium para detectar links Google Drive em páginas e enviá-los ao Manager.
+Gerenciador de múltiplas contas Google Drive e importação de links/OneDrive para **Unraid**, **ZorinOS Desktop**, **Linux/VPS** e **Windows 10/11**, com extensão Chrome/Chromium integrada ao Manager.
 
 ## Versões atuais
 
 | Edição | Versão | Status |
 |---|---:|---|
-| **Unraid** | **1.7.2** | **Stable** |
-| **ZorinOS Desktop** | **1.3.2** | **Stable** |
-| **Linux / VPS** | **1.0.3** | **Stable** |
-| **Drive Link Copier (Chrome/Chromium)** | **1.0.1** | **Stable** |
+| **Unraid** | **1.7.8** | **Stable** |
+| **ZorinOS Desktop** | **1.3.8** | **Stable** |
+| **Linux / VPS** | **1.0.9** | **Stable** |
+| **Drive Link Copier (Chrome/Chromium)** | **1.2.3** | **Stable** |
 | **Windows 10/11** | **1.1.2** | Beta |
 
 ## Download
 
-A partir desta versão, os downloads atuais ficam juntos em **uma única GitHub Release**:
+Os downloads atuais ficam juntos em **uma única GitHub Release**:
 
-**`rclone-manager-v1.7.2`**
+**`rclone-manager-v1.7.8`**
 
 Ela contém o ZIP do Unraid, ZIP e `.deb` do ZorinOS, ZIP e TAR.GZ da VPS, a extensão Drive Link Copier e `SHA256SUMS.txt`.
 
@@ -26,19 +26,25 @@ Ela contém o ZIP do Unraid, ZIP e `.deb` do ZorinOS, ZIP e TAR.GZ da VPS, a ext
 - mounts via rclone/FUSE;
 - Centro de Transferências entre Drives;
 - acesso a **Compartilhados comigo**;
-- importação OneDrive → Google Drive, inclusive itens de **Compartilhados comigo**;
-- fallback Microsoft Graph `/content` quando não há URL direta de download;
-- processamento OneDrive arquivo por arquivo: download → upload confirmado → limpeza do temporário;
-- retomada por checkpoint e tratamento de cota/retry;
-- **Backup Completo Portátil v2**, incluindo banco, contas, rclone, credenciais OAuth/tokens e Microsoft/OneDrive;
+- importação OneDrive → Google Drive;
+- fallback Microsoft Graph `/content` quando necessário;
+- processamento econômico de disco: **download de um arquivo → upload confirmado → limpeza → próximo arquivo**;
+- **Backup Completo Portátil v2** com banco, contas, rclone, credenciais OAuth/tokens e Microsoft/OneDrive;
 - Centro de Upload com sessões resumíveis;
 - Speedtest integrado com histórico;
-- **Drive Link Copier** para detectar vários links Google Drive em páginas e copiar para uma conta/pasta escolhida no Manager;
-- criação opcional de uma nova pasta para agrupar todos os links detectados;
-- Google Drive → Google Drive via API oficial `files.copy`, com confirmação do novo `fileId` e validação da pasta de destino antes de marcar sucesso;
-- no fluxo Drive → Drive, o conteúdo não precisa ser armazenado no disco local da VPS.
+- **Drive Link API v8** integrada à extensão;
+- detecção de Google Drive, OneDrive/SharePoint, MediaFire, Dropbox, Pixeldrain e links HTTP/HTTPS diretos suportados;
+- Google Drive → Google Drive via API oficial `files.copy`, sem armazenar o conteúdo localmente;
+- confirmação do novo `fileId` e da pasta de destino antes de marcar sucesso;
+- painel **API / Extensão** com origem, destino, progresso, tráfego, temporário e controles;
+- pausa, retomada, cancelamento e exclusão de tarefas;
+- **fila persistente FIFO** com prioridade por “Iniciar agora” e execução serial;
+- **Tentar novamente** e retorno ao fim da fila para tarefas com erro corrigível;
+- criação e exclusão de pastas Google Drive pela extensão;
+- carregamento automático das pastas ao trocar a conta Google de destino;
+- destino explicitamente confirmado antes de iniciar uma importação.
 
-## Unraid 1.7.2
+## Unraid 1.7.8
 
 Atualização:
 
@@ -49,37 +55,40 @@ chmod +x *.sh scripts/*.sh
 ./update.sh
 ```
 
-## ZorinOS Desktop 1.3.2
+## ZorinOS Desktop 1.3.8
 
 ```bash
-sudo apt install ./rclone-manager-desktop-zorinos_1.3.2_all.deb
+sudo apt install ./rclone-manager-desktop-zorinos_1.3.8_all.deb
 ```
 
 Os dados persistentes do usuário são preservados durante a atualização.
 
-## Linux / VPS 1.0.3
+## Linux / VPS 1.0.9
 
 Preparada para Ubuntu/Oracle Cloud com instalação padrão em `/opt/rclone-manager`.
 
 ```bash
 cd /tmp
-rm -rf rclone-vps-103
-mkdir rclone-vps-103
-cd rclone-vps-103
-unzip /caminho/rclone-manager-vps-v1.0.3.zip
+rm -rf rclone-vps-109
+mkdir -p rclone-vps-109
+cd rclone-vps-109
+unzip /opt/rclone-manager-vps-v1.0.9.zip
+cd rclone-manager-vps-v1.0.9
+chmod +x install.sh update.sh rollback.sh backup.sh uninstall.sh
+chmod +x scripts/*.sh
 sudo ./install.sh
 ```
 
 O instalador preserva `.env`, `data/`, `cache/` e `backups/` da instalação existente.
 
-## Drive Link Copier 1.0.1
+## Drive Link Copier 1.2.3
 
-1. Extraia `rclone-manager-drive-link-copier-v1.0.1.zip`.
+1. Extraia `rclone-manager-drive-link-copier-v1.2.3.zip`.
 2. Abra `chrome://extensions` no Chrome/Chromium.
 3. Ative **Modo do desenvolvedor** e escolha **Carregar sem compactação**.
-4. Em **Configuração da extensão**, informe a URL HTTPS do Manager e a API Key gerada no menu **Configurações**.
+4. Em **Configuração da extensão**, informe a URL HTTPS do Manager e a API Key gerada no Manager.
 
-A extensão apenas envia os IDs/links e o destino escolhido para o Manager. Credenciais Google, refresh tokens e Client Secrets permanecem no servidor/Manager.
+A extensão envia apenas os links/IDs e o destino escolhido. Credenciais Google, refresh tokens e Client Secrets permanecem no Manager.
 
 ## Backup Completo Portátil v2
 
@@ -95,6 +104,4 @@ A edição Windows continua em **1.1.2 Beta** até concluir a validação espec�
 
 Este repositório **não inclui dados reais de instalação**: Client Secret, tokens OAuth, `rclone.conf`, bancos SQLite, `.env`, senhas, API Keys, webhooks ou backups.
 
-O workflow da release unificada verifica arquivos sensíveis antes de montar os pacotes públicos.
-
-Veja [SECURITY.md](SECURITY.md) e [docs/RELEASE-RCLONE-MANAGER-1.7.2.md](docs/RELEASE-RCLONE-MANAGER-1.7.2.md).
+Veja [SECURITY.md](SECURITY.md) e [docs/RELEASE-RCLONE-MANAGER-1.7.8.md](docs/RELEASE-RCLONE-MANAGER-1.7.8.md).
