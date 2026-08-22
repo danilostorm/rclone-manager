@@ -1,55 +1,70 @@
-# Atualizações e releases
+# Atualização, verificação e rollback
+
+## Versões estáveis atuais
+
+- Unraid: 1.9.0
+- ZorinOS Desktop: 1.5.0
+- VPS/Linux: 1.2.0
+- Drive Link Copier: 1.3.0
+
+## VPS / Oracle Cloud
+
+Instalação padrão: `/opt/rclone-manager`.
+
+```bash
+cd /opt
+unzip -q rclone-manager-vps-v1.2.0.zip
+cd rclone-manager-vps-v1.2.0
+sudo ./install.sh
+```
+
+Verificação:
+
+```bash
+cd /opt/rclone-manager
+cat VERSION
+docker ps --filter name=rclone-manager-vps
+docker inspect --format='{{.State.Health.Status}}' rclone-manager-vps
+docker compose logs --tail=100
+```
+
+Esperado: `1.2.0` e container saudável.
+
+O instalador preserva `.env`, `data/`, `cache/` e `backups/`.
 
 ## Unraid
 
-A edição Unraid usa versões `1.x.y` e a versão estável atual é **1.5.2**.
-
-Para atualização manual:
-
 ```bash
 cd /mnt/user/appdata/rclone-manager
-# substitua apenas arquivos de código/pacote
-# preserve .env, data/ e cache/
+# extraia o novo ZIP sobre esta pasta preservando .env, data/ e cache/
+chmod +x *.sh scripts/*.sh
 ./update.sh
 ```
 
-A release oficial usa a tag:
+Antes de atualizar, recomenda-se executar:
 
-```text
-unraid-vX.Y.Z
+```bash
+./backup.sh ./backups
 ```
 
-O workflow `.github/workflows/publish-unraid-release.yml` reconstrói o pacote a partir da base versionada e do patch da versão, executa verificação de arquivos sensíveis, gera SHA256 e publica a Release.
+## ZorinOS Desktop
 
-## ZorinOS
-
-A versão estável atual é **1.1.2**.
-
-A edição Desktop é publicada com tags:
-
-```text
-zorinos-vX.Y.Z
+```bash
+sudo apt install ./rclone-manager-desktop-zorinos_1.5.0_all.deb
 ```
 
-O release deve conter no mínimo:
+Os dados persistentes do usuário são mantidos pela atualização.
 
-```text
-rclone-manager-desktop-zorinos_X.Y.Z_all.deb
-rclone-manager-desktop-zorinos_X.Y.Z_all.deb.sha256
-rclone-manager-desktop-zorinos-vX.Y.Z.zip
-rclone-manager-desktop-zorinos-vX.Y.Z.sha256
+## Rollback
+
+As edições Unraid/VPS incluem `rollback.sh`. Em caso de erro, não apague `data/` nem `.env`. Consulte primeiro os logs e use o backup criado antes da atualização.
+
+## Integridade
+
+Toda GitHub Release inclui `SHA256SUMS.txt`. Para conferir um arquivo:
+
+```bash
+sha256sum -c SHA256SUMS.txt
 ```
 
-O workflow `.github/workflows/publish-zorinos-release.yml` monta o pacote fonte, verifica se não há arquivos sensíveis, gera o `.deb`, calcula SHA256 e cria/atualiza a GitHub Release.
-
-### Checklist antes de publicar
-
-1. Atualizar o código/patch da edição correspondente.
-2. Confirmar que não existem `.env`, `rclone.conf`, tokens, bancos reais, chaves privadas ou backups no pacote.
-3. Atualizar `CHANGELOG.md` e as release notes.
-4. Atualizar `desktop-release/VERSION` para ZorinOS ou `unraid-release/VERSION` para Unraid.
-5. Fazer push no `main` e verificar a Release gerada pelo GitHub Actions.
-
-## Windows
-
-A edição Windows segue como **1.1.2 Beta** até passar pela validação específica em Windows 10/11, incluindo WinFsp, mount, inicialização e instalador. Só depois deve receber tag de Stable.
+Execute o comando no diretório que contém todos os assets listados no arquivo.
