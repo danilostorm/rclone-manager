@@ -1,6 +1,6 @@
 status=failure
-run_id=32598922013
-run_number=12
-head_sha=44418fb75b1a846c3f24875604524d6b9d0564e4
-workflow_url=https://github.com/danilostorm/rclone-manager/actions/runs/32598922013
-recorded_at=2026-08-22T21:13:01Z
+run_id=32599479740
+run_number=13
+head_sha=09898f8b008c2344c086d4d62885fcc93f29d7bb
+workflow_url=https://github.com/danilostorm/rclone-manager/actions/runs/32599479740
+recorded_at=2026-08-22T21:24:28Z
