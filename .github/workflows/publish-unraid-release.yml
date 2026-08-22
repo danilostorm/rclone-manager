@@ -7,7 +7,6 @@ on:
       - 'unraid-release/VERSION'
       - 'unraid-release/patches/**'
       - 'unraid-release/full/**'
-      - 'dist/unraid/**'
       - 'docs/RELEASE-UNRAID-*.md'
       - '.github/workflows/publish-unraid-release.yml'
   workflow_dispatch:
@@ -28,76 +27,36 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(tr -d '[:space:]' < unraid-release/VERSION)"
-          test -n "$VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=unraid-v$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Build release ZIP
+      - name: Rebuild release source
         shell: bash
         run: |
           set -euo pipefail
           VERSION='${{ steps.version.outputs.version }}'
-          BASE_VERSION='1.4.0'
-          BASE_ZIP="dist/unraid/rclone-manager-unraid-v${BASE_VERSION}.zip"
-          ZIP="dist/unraid/rclone-manager-unraid-v${VERSION}.zip"
-          PATCH="unraid-release/patches/${VERSION}.patch"
-          PATCH_XZ_B64="${PATCH}.xz.b64"
-          PATCH_TMP="/tmp/rclone-manager-unraid-${VERSION}.patch"
-          FULL_XZ_B64="unraid-release/full/${VERSION}.tar.xz.b64"
-          FULL_PART_PREFIX="${FULL_XZ_B64}.part-"
-          FULL_TMP="/tmp/rclone-manager-unraid-${VERSION}.tar.xz"
-
+          BASE='1.6.9'
+          BASE_PREFIX="unraid-release/full/${BASE}.tar.xz.b64.part-"
+          PATCH="unraid-release/patches/${VERSION}.patch.xz.b64"
+          test -e "${BASE_PREFIX}00"
+          test -f "$PATCH"
           rm -rf build-unraid
-          mkdir -p build-unraid
-
-          # Releases novas podem carregar um snapshot completo compactado em
-          # base64. Isto evita depender para sempre do ZIP-base 1.4.0 e permite
-          # publicar hotfixes grandes sem commitar binários diretamente.
-          if [ -f "$FULL_XZ_B64" ]; then
-            base64 -d "$FULL_XZ_B64" > "$FULL_TMP"
-            tar -xJf "$FULL_TMP" -C build-unraid
-          elif compgen -G "${FULL_PART_PREFIX}*" >/dev/null; then
-            cat "${FULL_PART_PREFIX}"* | base64 -d > "$FULL_TMP"
-            tar -xJf "$FULL_TMP" -C build-unraid
-          else
-            test -f "$BASE_ZIP"
-            if [ -f "$PATCH" ]; then
-              cp "$PATCH" "$PATCH_TMP"
-            elif [ -f "$PATCH_XZ_B64" ]; then
-              base64 -d "$PATCH_XZ_B64" | xz -d > "$PATCH_TMP"
-            else
-              PARTS=("${PATCH}.part-"*)
-              test -e "${PARTS[0]}"
-              cat "${PATCH}.part-"* > "$PATCH_TMP"
-            fi
-
-            unzip -q "$BASE_ZIP" -d build-unraid
-            (
-              cd build-unraid
-              patch -p1 < "$PATCH_TMP"
-            )
-          fi
-
+          mkdir -p build-unraid dist/unraid
+          cat "${BASE_PREFIX}"* | base64 -d > /tmp/base-unraid.tar.xz
+          tar -xJf /tmp/base-unraid.tar.xz -C build-unraid
+          base64 -d "$PATCH" | xz -d > /tmp/update.patch
+          patch -d build-unraid -p1 < /tmp/update.patch
           test "$(tr -d '[:space:]' < build-unraid/VERSION)" = "$VERSION"
-
           if find build-unraid -type f \( -name '.env' -o -name 'rclone.conf' -o -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
-            echo 'Sensitive runtime file found in Unraid release source.' >&2
-            exit 1
+            echo 'Sensitive runtime file found.' >&2; exit 1
           fi
           if find build-unraid -type d -name '__pycache__' | grep -q .; then
-            echo '__pycache__ must not be shipped.' >&2
-            exit 1
+            echo '__pycache__ must not be shipped.' >&2; exit 1
           fi
-
-          rm -f "$ZIP" "${ZIP%.zip}.sha256"
-          (
-            cd build-unraid
-            zip -qr "$GITHUB_WORKSPACE/$ZIP" .
-          )
-          (
-            cd dist/unraid
-            sha256sum "rclone-manager-unraid-v${VERSION}.zip" > "rclone-manager-unraid-v${VERSION}.sha256"
-          )
+          ZIP="dist/unraid/rclone-manager-unraid-v${VERSION}.zip"
+          rm -f "$ZIP" "dist/unraid/rclone-manager-unraid-v${VERSION}.sha256"
+          (cd build-unraid && zip -qr "$GITHUB_WORKSPACE/$ZIP" .)
+          (cd dist/unraid && sha256sum "rclone-manager-unraid-v${VERSION}.zip" > "rclone-manager-unraid-v${VERSION}.sha256")
 
       - name: Create or update GitHub Release
         env:
@@ -109,18 +68,11 @@ jobs:
           TAG='${{ steps.version.outputs.tag }}'
           ZIP="dist/unraid/rclone-manager-unraid-v${VERSION}.zip"
           SHA="dist/unraid/rclone-manager-unraid-v${VERSION}.sha256"
-          TITLE="Rclone Manager for Unraid v${VERSION}"
           NOTES="docs/RELEASE-UNRAID-${VERSION}.md"
-
+          TITLE="Rclone Manager for Unraid v${VERSION}"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$ZIP" "$SHA" --clobber
-            if [ -f "$NOTES" ]; then
-              gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES"
-            fi
+            gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES"
           else
-            if [ -f "$NOTES" ]; then
-              gh release create "$TAG" "$ZIP" "$SHA" --title "$TITLE" --notes-file "$NOTES"
-            else
-              gh release create "$TAG" "$ZIP" "$SHA" --title "$TITLE" --notes "Rclone Manager ${VERSION} para Unraid. Preserve .env, data/ e cache/ ao atualizar e execute ./update.sh."
-            fi
+            gh release create "$TAG" "$ZIP" "$SHA" --title "$TITLE" --notes-file "$NOTES"
           fi
