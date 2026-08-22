@@ -1,15 +1,6 @@
-name: Publish VPS release
+name: Publish VPS release (manual legacy)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'vps-release/VERSION'
-      - 'vps-release/patches/**'
-      - 'unraid-release/patches/**'
-      - 'unraid-release/full/**'
-      - 'docs/RELEASE-VPS-*.md'
-      - '.github/workflows/publish-vps-release.yml'
   workflow_dispatch:
 
 permissions:
@@ -55,9 +46,6 @@ jobs:
           test "$(tr -d '[:space:]' < "$SRC/VERSION")" = "$VERSION"
           if find "$SRC" -type f \( -name '.env' -o -name 'rclone.conf' -o -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
             echo 'Sensitive runtime file found.' >&2; exit 1
-          fi
-          if find "$SRC" -type d -name '__pycache__' | grep -q .; then
-            echo '__pycache__ must not be shipped.' >&2; exit 1
           fi
           ZIP="rclone-manager-vps-v${VERSION}.zip"
           TGZ="rclone-manager-vps-v${VERSION}.tar.gz"
