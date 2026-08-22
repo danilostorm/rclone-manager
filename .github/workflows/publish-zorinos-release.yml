@@ -38,10 +38,10 @@ jobs:
           VERSION='${{ steps.version.outputs.version }}'
           BASE_PREFIX='unraid-release/full/1.6.9.tar.xz.b64.part-'
           U_PATCH='unraid-release/patches/1.7.0.patch.xz.b64'
-          D_PATCH="desktop-release/patches/from-unraid-1.7.0-to-${VERSION}.patch.xz.b64"
+          D_PREFIX="desktop-release/patches/from-unraid-1.7.0-to-${VERSION}.patch.xz.b64.part-"
           test -e "${BASE_PREFIX}00"
           test -f "$U_PATCH"
-          test -f "$D_PATCH"
+          test -e "${D_PREFIX}00"
           rm -rf build-base build-src package
           mkdir -p build-base build-src dist/zorinos
           cat "${BASE_PREFIX}"* | base64 -d > /tmp/base-unraid.tar.xz
@@ -50,7 +50,7 @@ jobs:
           patch -d build-base -p1 < /tmp/unraid.patch
           SRC="build-src/rclone-manager-desktop-v${VERSION}"
           cp -a build-base "$SRC"
-          base64 -d "$D_PATCH" | xz -d > /tmp/desktop.patch
+          cat "${D_PREFIX}"* | base64 -d | xz -d > /tmp/desktop.patch
           patch -d "$SRC" -p1 < /tmp/desktop.patch
           test "$(tr -d '[:space:]' < "$SRC/VERSION")" = "$VERSION"
           if find "$SRC" -type f \( -name '.env' -o -name 'rclone.conf' -o -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
