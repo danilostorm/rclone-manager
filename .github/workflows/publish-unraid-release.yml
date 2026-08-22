@@ -1,14 +1,6 @@
-name: Publish Unraid release
+name: Publish Unraid release (manual legacy)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'unraid-release/VERSION'
-      - 'unraid-release/patches/**'
-      - 'unraid-release/full/**'
-      - 'docs/RELEASE-UNRAID-*.md'
-      - '.github/workflows/publish-unraid-release.yml'
   workflow_dispatch:
 
 permissions:
