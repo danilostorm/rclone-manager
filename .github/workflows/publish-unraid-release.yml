@@ -6,6 +6,7 @@ on:
     paths:
       - 'unraid-release/VERSION'
       - 'unraid-release/patches/**'
+      - 'unraid-release/full/**'
       - 'dist/unraid/**'
       - 'docs/RELEASE-UNRAID-*.md'
       - '.github/workflows/publish-unraid-release.yml'
@@ -42,25 +43,42 @@ jobs:
           PATCH="unraid-release/patches/${VERSION}.patch"
           PATCH_XZ_B64="${PATCH}.xz.b64"
           PATCH_TMP="/tmp/rclone-manager-unraid-${VERSION}.patch"
-
-          test -f "$BASE_ZIP"
-          if [ -f "$PATCH" ]; then
-            cp "$PATCH" "$PATCH_TMP"
-          elif [ -f "$PATCH_XZ_B64" ]; then
-            base64 -d "$PATCH_XZ_B64" | xz -d > "$PATCH_TMP"
-          else
-            PARTS=("${PATCH}.part-"*)
-            test -e "${PARTS[0]}"
-            cat "${PATCH}.part-"* > "$PATCH_TMP"
-          fi
+          FULL_XZ_B64="unraid-release/full/${VERSION}.tar.xz.b64"
+          FULL_PART_PREFIX="${FULL_XZ_B64}.part-"
+          FULL_TMP="/tmp/rclone-manager-unraid-${VERSION}.tar.xz"
 
           rm -rf build-unraid
           mkdir -p build-unraid
-          unzip -q "$BASE_ZIP" -d build-unraid
-          (
-            cd build-unraid
-            patch -p1 < "$PATCH_TMP"
-          )
+
+          # Releases novas podem carregar um snapshot completo compactado em
+          # base64. Isto evita depender para sempre do ZIP-base 1.4.0 e permite
+          # publicar hotfixes grandes sem commitar binários diretamente.
+          if [ -f "$FULL_XZ_B64" ]; then
+            base64 -d "$FULL_XZ_B64" > "$FULL_TMP"
+            tar -xJf "$FULL_TMP" -C build-unraid
+          elif compgen -G "${FULL_PART_PREFIX}*" >/dev/null; then
+            cat "${FULL_PART_PREFIX}"* | base64 -d > "$FULL_TMP"
+            tar -xJf "$FULL_TMP" -C build-unraid
+          else
+            test -f "$BASE_ZIP"
+            if [ -f "$PATCH" ]; then
+              cp "$PATCH" "$PATCH_TMP"
+            elif [ -f "$PATCH_XZ_B64" ]; then
+              base64 -d "$PATCH_XZ_B64" | xz -d > "$PATCH_TMP"
+            else
+              PARTS=("${PATCH}.part-"*)
+              test -e "${PARTS[0]}"
+              cat "${PATCH}.part-"* > "$PATCH_TMP"
+            fi
+
+            unzip -q "$BASE_ZIP" -d build-unraid
+            (
+              cd build-unraid
+              patch -p1 < "$PATCH_TMP"
+            )
+          fi
+
+          test "$(tr -d '[:space:]' < build-unraid/VERSION)" = "$VERSION"
 
           if find build-unraid -type f \( -name '.env' -o -name 'rclone.conf' -o -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
             echo 'Sensitive runtime file found in Unraid release source.' >&2

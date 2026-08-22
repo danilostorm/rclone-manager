@@ -6,7 +6,7 @@ Gerenciador de múltiplas contas Google Drive para **Unraid**, **ZorinOS Desktop
 
 | Edição | Versão | Status |
 |---|---:|---|
-| **Unraid** | **1.5.2** | **Stable** |
+| **Unraid** | **1.6.9** | **Stable** |
 | **ZorinOS Desktop** | **1.1.2** | **Stable** |
 | **Windows 10/11** | **1.1.2** | Beta até validação final no Windows |
 
@@ -16,6 +16,8 @@ Gerenciador de múltiplas contas Google Drive para **Unraid**, **ZorinOS Desktop
 - mounts via rclone/FUSE (e WinFsp na edição Windows);
 - Centro de Transferências entre Drives;
 - acesso a **Compartilhados comigo**;
+- importação OneDrive → Google Drive, inclusive itens de **Compartilhados comigo**;
+- fallback pelo endpoint Microsoft Graph `/content` quando a Microsoft não fornece URL direta de download;
 - busca, criação de pastas, renomear e exclusão/lixeira;
 - preferência por cópia Google → Google server-side;
 - retomada por checkpoint;
@@ -31,7 +33,7 @@ Gerenciador de múltiplas contas Google Drive para **Unraid**, **ZorinOS Desktop
 
 ## Unraid
 
-A versão estável é **1.5.2**. Baixe na seção **Releases** (`unraid-v1.5.2`).
+A versão estável é **1.6.9**. Baixe na seção **Releases** (`unraid-v1.6.9`).
 
 Para atualizar uma instalação existente, extraia o conteúdo por cima de:
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unraid 1.6.9
+
+- corrige HTTP 400 por CSRF na análise/importação OneDrive;
+- mantém a navegação e análise de **Compartilhados comigo**;
+- adiciona fallback pelo endpoint Microsoft Graph `/drives/{drive-id}/items/{item-id}/content` quando a Microsoft não retorna `@microsoft.graph.downloadUrl`;
+- segue o redirect `Location` da Microsoft e preserva downloads retomáveis por `Range` na URL temporária real;
+- melhora o fluxo OneDrive → Google Drive sem apagar o temporário antes da confirmação do upload no Google.
+
 ## ZorinOS Desktop 1.1.2
 
 - mantém o Centro de Upload introduzido na 1.1.1;
