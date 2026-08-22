@@ -1,15 +1,38 @@
-# Source snapshots — Rclone Manager 1.9.0
+# Cadeia de código-fonte — Rclone Manager 1.9.0
 
-Snapshots completos usados para reconstruir a GitHub Release oficial.
+Este diretório contém o **delta final validado** que transforma as últimas bases estáveis publicadas nas versões finais da release 1.9.0.
 
-Reconstituição:
+Bases usadas:
+
+- Unraid `1.7.8` -> `1.9.0`
+- ZorinOS Desktop `1.3.8` -> `1.5.0`
+- VPS/Linux `1.0.9` -> `1.2.0`
+- Drive Link Copier `1.2.3` -> `1.3.0`
+
+As bases anteriores continuam reproduzíveis pelos arquivos históricos já versionados em `unraid-release/`, `desktop-release/`, `vps-release/` e `release-bundle/source/`.
+
+## Reconstruir o delta final
 
 ```bash
-cat unraid-1.9.0.tar.xz.b64.part-* | base64 -d > unraid-1.9.0.tar.xz
-cat desktop-1.5.0.tar.xz.b64.part-* | base64 -d > desktop-1.5.0.tar.xz
-cat vps-1.2.0.tar.xz.b64.part-* | base64 -d > vps-1.2.0.tar.xz
-cat drive-link-copier-1.3.0.tar.xz.b64.part-* | base64 -d > drive-link-copier-1.3.0.tar.xz
-sha256sum -c SHA256SUMS-SOURCE.txt
+cat final-1.9.0-patches-small.b64.part-* | base64 -d > final-1.9.0-patches.tar.xz
+sha256sum final-1.9.0-patches.tar.xz
 ```
 
-Depois extraia o arquivo desejado com `tar -xJf`.
+SHA-256 esperado:
+
+```text
+8fcec580b4f5cbecc30120cd396f70af23931a2b91f9a490384a85e0a3b73a74
+```
+
+O arquivo contém quatro patches:
+
+```text
+unraid-1.7.8-to-1.9.0.patch
+desktop-1.3.8-to-1.5.0.patch
+vps-1.0.9-to-1.2.0.patch
+extension-1.2.3-to-1.3.0.patch
+```
+
+O workflow `.github/workflows/publish-unified-release.yml` reconstrói primeiro as quatro bases estáveis a partir do histórico do próprio repositório, valida o SHA-256 deste delta, aplica os patches e só então gera os assets da GitHub Release.
+
+Nenhuma credencial, `.env`, `rclone.conf`, banco, JSON de Service Account, chave privada, cache ou backup faz parte desta cadeia de código-fonte.
