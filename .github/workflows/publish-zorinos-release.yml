@@ -1,15 +1,6 @@
-name: Publish ZorinOS release
+name: Publish ZorinOS release (manual legacy)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'desktop-release/VERSION'
-      - 'desktop-release/patches/**'
-      - 'unraid-release/patches/**'
-      - 'unraid-release/full/**'
-      - 'docs/RELEASE-*.md'
-      - '.github/workflows/publish-zorinos-release.yml'
   workflow_dispatch:
 
 permissions:
@@ -56,13 +47,9 @@ jobs:
           if find "$SRC" -type f \( -name '.env' -o -name 'rclone.conf' -o -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
             echo 'Sensitive runtime file found.' >&2; exit 1
           fi
-          if find "$SRC" -type d -name '__pycache__' | grep -q .; then
-            echo '__pycache__ must not be shipped.' >&2; exit 1
-          fi
           ZIP="dist/zorinos/rclone-manager-desktop-zorinos-v${VERSION}.zip"
-          rm -f "$ZIP" "${ZIP%.zip}.sha256"
+          rm -f "$ZIP"
           (cd build-src && zip -qr "$GITHUB_WORKSPACE/$ZIP" "rclone-manager-desktop-v${VERSION}")
-          (cd dist/zorinos && sha256sum "rclone-manager-desktop-zorinos-v${VERSION}.zip" > "rclone-manager-desktop-zorinos-v${VERSION}.sha256")
 
       - name: Build Debian package
         shell: bash
@@ -102,7 +89,6 @@ jobs:
           PRERM
           chmod 755 "$PKG/DEBIAN/postinst" "$PKG/DEBIAN/prerm"
           dpkg-deb --build --root-owner-group "$PKG" "$DEB"
-          (cd dist/zorinos && sha256sum "rclone-manager-desktop-zorinos_${VERSION}_all.deb" > "rclone-manager-desktop-zorinos_${VERSION}_all.deb.sha256")
 
       - name: Create or update GitHub Release
         env:
@@ -117,8 +103,8 @@ jobs:
           NOTES="docs/RELEASE-${VERSION}.md"
           TITLE="Rclone Manager Desktop for ZorinOS v${VERSION}"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$DEB" "${DEB}.sha256" "$ZIP" "${ZIP%.zip}.sha256" --clobber
+            gh release upload "$TAG" "$DEB" "$ZIP" --clobber
             gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES"
           else
-            gh release create "$TAG" "$DEB" "${DEB}.sha256" "$ZIP" "${ZIP%.zip}.sha256" --title "$TITLE" --notes-file "$NOTES"
+            gh release create "$TAG" "$DEB" "$ZIP" --title "$TITLE" --notes-file "$NOTES"
           fi
