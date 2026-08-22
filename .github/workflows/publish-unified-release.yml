@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'release-bundle/VERSION'
-      - 'release-bundle/assets/**'
+      - 'release-bundle/source/**'
       - 'extension-release/VERSION'
       - 'unraid-release/VERSION'
       - 'desktop-release/VERSION'
@@ -24,7 +24,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Rebuild and validate release assets
+      - name: Install packaging tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xz-utils patch zip unzip dpkg-dev
+
+      - name: Rebuild validated source trees
         shell: bash
         run: |
           set -euo pipefail
@@ -41,49 +48,165 @@ jobs:
           test "$VPS" = '1.0.9'
           test "$EXT" = '1.2.3'
 
-          SRC="release-bundle/assets/${BUNDLE}"
-          OUT="dist-unified"
-          rm -rf "$OUT"
-          mkdir -p "$OUT"
+          BASE169='unraid-release/full/1.6.9.tar.xz.b64.part-'
+          U170='unraid-release/patches/1.7.0.patch.xz.b64'
+          U172='release-bundle/source/unraid-1.7.0-to-1.7.2.patch.xz.b64.part-'
+          U178='release-bundle/source/unraid-1.7.2-to-1.7.8.patch.xz.b64'
+          D130='desktop-release/patches/from-unraid-1.7.0-to-1.3.0.patch.xz.b64.part-'
+          D132='release-bundle/source/zorin-1.3.0-to-1.3.2.patch.xz.b64.part-'
+          D138='release-bundle/source/zorin-1.3.2-to-1.3.8.patch.xz.b64'
+          UV109='release-bundle/source/unraid-1.7.8-to-vps-1.0.9.patch.xz.b64'
+          EXT101='release-bundle/source/extension-1.0.1.zip.b64.part-'
+          EXT123='release-bundle/source/ext-1.0.1-to-1.2.3.patch.xz.b64.part-'
 
-          rebuild() {
-            local name="$1"
-            local prefix="$SRC/${name}.b64.part-"
-            test -e "${prefix}00"
-            cat "${prefix}"* | base64 -d > "$OUT/$name"
-          }
+          test -e "${BASE169}00"
+          test -f "$U170"
+          test -e "${U172}00"
+          test -f "$U178"
+          test -e "${D130}00"
+          test -e "${D132}00"
+          test -f "$D138"
+          test -f "$UV109"
+          test -e "${EXT101}00"
+          test -e "${EXT123}00"
 
-          rebuild "rclone-manager-unraid-v${UNRAID}.zip"
-          rebuild "rclone-manager-desktop-zorinos-v${ZORIN}.zip"
-          rebuild "rclone-manager-desktop-zorinos_${ZORIN}_all.deb"
-          rebuild "rclone-manager-vps-v${VPS}.zip"
-          rebuild "rclone-manager-vps-v${VPS}.tar.gz"
-          rebuild "rclone-manager-drive-link-copier-v${EXT}.zip"
-          rebuild "SHA256SUMS.txt"
+          rm -rf build-base170 build-unraid172 build-unraid build-zorin build-vps build-ext package dist-unified
+          mkdir -p build-base170 build-unraid172 build-unraid build-zorin build-vps build-ext dist-unified
 
-          # Integridade dos formatos.
-          unzip -t "$OUT/rclone-manager-unraid-v${UNRAID}.zip" >/dev/null
-          unzip -t "$OUT/rclone-manager-desktop-zorinos-v${ZORIN}.zip" >/dev/null
-          unzip -t "$OUT/rclone-manager-vps-v${VPS}.zip" >/dev/null
-          unzip -t "$OUT/rclone-manager-drive-link-copier-v${EXT}.zip" >/dev/null
-          tar -tzf "$OUT/rclone-manager-vps-v${VPS}.tar.gz" >/dev/null
-          dpkg-deb --info "$OUT/rclone-manager-desktop-zorinos_${ZORIN}_all.deb" >/dev/null
+          # 1) Reconstrói a base Unraid 1.7.0 já validada pela release anterior.
+          cat "${BASE169}"* | base64 -d > /tmp/unraid-1.6.9.tar.xz
+          tar -xJf /tmp/unraid-1.6.9.tar.xz -C build-base170
+          base64 -d "$U170" | xz -d > /tmp/unraid-1.7.0.patch
+          patch -d build-base170 -p1 --batch < /tmp/unraid-1.7.0.patch
+          test "$(tr -d '[:space:]' < build-base170/VERSION)" = '1.7.0'
 
-          # Versões internas.
-          test "$(unzip -p "$OUT/rclone-manager-unraid-v${UNRAID}.zip" VERSION | tr -d '[:space:]')" = "$UNRAID"
-          test "$(unzip -p "$OUT/rclone-manager-desktop-zorinos-v${ZORIN}.zip" '*/VERSION' | tr -d '[:space:]')" = "$ZORIN"
-          test "$(unzip -p "$OUT/rclone-manager-vps-v${VPS}.zip" '*/VERSION' | tr -d '[:space:]')" = "$VPS"
-          unzip -p "$OUT/rclone-manager-drive-link-copier-v${EXT}.zip" '*/manifest.json' | grep -Eq '"version"[[:space:]]*:[[:space:]]*"1\.2\.3"'
+          # 2) Reconstrói Unraid 1.7.2 e aplica somente o delta validado até 1.7.8.
+          cp -a build-base170/. build-unraid172/
+          cat "${U172}"* | base64 -d | xz -d > /tmp/unraid-1.7.2.patch
+          patch -d build-unraid172 -p1 --batch < /tmp/unraid-1.7.2.patch
+          test "$(tr -d '[:space:]' < build-unraid172/VERSION)" = '1.7.2'
+          cp -a build-unraid172/. build-unraid/
+          base64 -d "$U178" | xz -d > /tmp/unraid-1.7.8.patch
+          patch -d build-unraid -p1 --batch < /tmp/unraid-1.7.8.patch
+          test "$(tr -d '[:space:]' < build-unraid/VERSION)" = "$UNRAID"
 
-          # Metadados VPS devem acompanhar a versão real.
-          unzip -p "$OUT/rclone-manager-vps-v${VPS}.zip" '*/install.sh' | grep -F 'VERSION="1.0.9"'
-          unzip -p "$OUT/rclone-manager-vps-v${VPS}.zip" '*/docker-compose.yml' | grep -F 'local/rclone-manager-vps:1.0.9'
-          unzip -p "$OUT/rclone-manager-vps-v${VPS}.zip" '*/Dockerfile' | grep -F 'org.opencontainers.image.version="1.0.9"'
+          # 3) ZorinOS 1.3.2 -> 1.3.8.
+          ZSRC="build-zorin/rclone-manager-desktop-v${ZORIN}"
+          cp -a build-base170 "$ZSRC"
+          cat "${D130}"* | base64 -d | xz -d > /tmp/zorin-1.3.0.patch
+          patch -d "$ZSRC" -p1 --batch < /tmp/zorin-1.3.0.patch
+          cat "${D132}"* | base64 -d | xz -d > /tmp/zorin-1.3.2.patch
+          patch -d "$ZSRC" -p1 --batch < /tmp/zorin-1.3.2.patch
+          test "$(tr -d '[:space:]' < "$ZSRC/VERSION")" = '1.3.2'
+          base64 -d "$D138" | xz -d > /tmp/zorin-1.3.8.patch
+          patch -d "$ZSRC" -p1 --batch < /tmp/zorin-1.3.8.patch
+          test "$(tr -d '[:space:]' < "$ZSRC/VERSION")" = "$ZORIN"
 
-          # Checksum oficial da release.
-          (cd "$OUT" && sha256sum -c SHA256SUMS.txt)
+          # 4) VPS 1.0.9 deriva do código final Unraid 1.7.8 + diferenças próprias da edição VPS.
+          VSRC="build-vps/rclone-manager-vps-v${VPS}"
+          cp -a build-unraid "$VSRC"
+          base64 -d "$UV109" | xz -d > /tmp/vps-1.0.9.patch
+          patch -d "$VSRC" -p1 --batch < /tmp/vps-1.0.9.patch
+          test "$(tr -d '[:space:]' < "$VSRC/VERSION")" = "$VPS"
 
-          ls -lh "$OUT"
+          # 5) Extensão 1.0.1 -> 1.2.3.
+          cat "${EXT101}"* | base64 -d > /tmp/ext-1.0.1.zip
+          unzip -q /tmp/ext-1.0.1.zip -d build-ext/base
+          EXTBASE="$(find build-ext/base -mindepth 1 -maxdepth 1 -type d | head -n1)"
+          test -n "$EXTBASE"
+          cat "${EXT123}"* | base64 -d | xz -d > /tmp/ext-1.2.3.patch
+          patch -d "$EXTBASE" -p1 --batch < /tmp/ext-1.2.3.patch
+          grep -Eq '"version"[[:space:]]*:[[:space:]]*"1\.2\.3"' "$EXTBASE/manifest.json"
+          EXTROOT="build-ext/rclone-manager-drive-link-copier-v${EXT}"
+          mv "$EXTBASE" "$EXTROOT"
+
+          # Segurança: os pacotes públicos nunca levam dados persistentes/reais.
+          for SRC in build-unraid "$ZSRC" "$VSRC" "$EXTROOT"; do
+            if find "$SRC" -type f \( -name '.env' -o -name 'rclone.conf' -o -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
+              echo "Sensitive runtime file found in $SRC" >&2
+              exit 1
+            fi
+            if find "$SRC" -type d -name '__pycache__' | grep -q .; then
+              echo "__pycache__ found in $SRC" >&2
+              exit 1
+            fi
+          done
+
+          # Metadados da VPS precisam acompanhar a versão real.
+          grep -F 'VERSION="1.0.9"' "$VSRC/install.sh"
+          grep -F 'local/rclone-manager-vps:1.0.9' "$VSRC/docker-compose.yml"
+          grep -F 'org.opencontainers.image.version="1.0.9"' "$VSRC/Dockerfile"
+
+          # Pacote Unraid.
+          (cd build-unraid && zip -qr "$GITHUB_WORKSPACE/dist-unified/rclone-manager-unraid-v${UNRAID}.zip" .)
+
+          # Pacote ZorinOS ZIP.
+          (cd build-zorin && zip -qr "$GITHUB_WORKSPACE/dist-unified/rclone-manager-desktop-zorinos-v${ZORIN}.zip" "rclone-manager-desktop-v${ZORIN}")
+
+          # Pacote ZorinOS DEB.
+          PKG=package
+          DEB="$GITHUB_WORKSPACE/dist-unified/rclone-manager-desktop-zorinos_${ZORIN}_all.deb"
+          mkdir -p "$PKG/DEBIAN" "$PKG/opt/rclone-manager-desktop" "$PKG/usr/bin" "$PKG/usr/share/applications"
+          cp -a "$ZSRC"/. "$PKG/opt/rclone-manager-desktop/"
+          cp "$ZSRC/packaging/rclone-manager-desktop" "$PKG/usr/bin/rclone-manager-desktop"
+          cp "$ZSRC/packaging/rclone-manager-desktop.desktop" "$PKG/usr/share/applications/rclone-manager-desktop.desktop"
+          chmod +x "$PKG/usr/bin/rclone-manager-desktop" "$PKG/opt/rclone-manager-desktop/desktop_main.py" "$PKG/opt/rclone-manager-desktop/install-zorin.sh" "$PKG/opt/rclone-manager-desktop/uninstall-zorin.sh"
+          cat > "$PKG/DEBIAN/control" <<CONTROL
+          Package: rclone-manager-desktop
+          Version: ${ZORIN}
+          Section: net
+          Priority: optional
+          Architecture: all
+          Maintainer: Storm Projects
+          Depends: python3, python3-flask, python3-requests, python3-waitress, python3-gi, gir1.2-gtk-3.0, gir1.2-webkit2-4.1, rclone, fuse3, ca-certificates
+          Description: Rclone Manager Desktop for ZorinOS
+           Google Drive multi-account manager, OneDrive/link importer, portable backup/restore and Drive Link API.
+          CONTROL
+          cat > "$PKG/DEBIAN/postinst" <<'POSTINST'
+          #!/bin/sh
+          set -e
+          chmod +x /opt/rclone-manager-desktop/desktop_main.py || true
+          update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+          exit 0
+          POSTINST
+          cat > "$PKG/DEBIAN/prerm" <<'PRERM'
+          #!/bin/sh
+          pkill -f '/opt/rclone-manager-desktop/desktop_main.py' 2>/dev/null || true
+          exit 0
+          PRERM
+          chmod 755 "$PKG/DEBIAN/postinst" "$PKG/DEBIAN/prerm"
+          dpkg-deb --build --root-owner-group "$PKG" "$DEB"
+
+          # Pacotes VPS ZIP + TAR.GZ.
+          (cd build-vps && zip -qr "$GITHUB_WORKSPACE/dist-unified/rclone-manager-vps-v${VPS}.zip" "rclone-manager-vps-v${VPS}")
+          tar -czf "dist-unified/rclone-manager-vps-v${VPS}.tar.gz" -C build-vps "rclone-manager-vps-v${VPS}"
+
+          # Extensão Chrome/Chromium.
+          (cd build-ext && zip -qr "$GITHUB_WORKSPACE/dist-unified/rclone-manager-drive-link-copier-v${EXT}.zip" "rclone-manager-drive-link-copier-v${EXT}")
+
+          # Testes rápidos dos pacotes recém-construídos.
+          unzip -t "dist-unified/rclone-manager-unraid-v${UNRAID}.zip" >/dev/null
+          unzip -t "dist-unified/rclone-manager-desktop-zorinos-v${ZORIN}.zip" >/dev/null
+          unzip -t "dist-unified/rclone-manager-vps-v${VPS}.zip" >/dev/null
+          unzip -t "dist-unified/rclone-manager-drive-link-copier-v${EXT}.zip" >/dev/null
+          tar -tzf "dist-unified/rclone-manager-vps-v${VPS}.tar.gz" >/dev/null
+          dpkg-deb --info "dist-unified/rclone-manager-desktop-zorinos_${ZORIN}_all.deb" >/dev/null
+
+          # Checksums finais desta release.
+          (
+            cd dist-unified
+            sha256sum \
+              "rclone-manager-unraid-v${UNRAID}.zip" \
+              "rclone-manager-desktop-zorinos-v${ZORIN}.zip" \
+              "rclone-manager-desktop-zorinos_${ZORIN}_all.deb" \
+              "rclone-manager-vps-v${VPS}.zip" \
+              "rclone-manager-vps-v${VPS}.tar.gz" \
+              "rclone-manager-drive-link-copier-v${EXT}.zip" \
+              > SHA256SUMS.txt
+          )
+
+          ls -lh dist-unified
+          cat dist-unified/SHA256SUMS.txt
 
       - name: Create or update one unified GitHub Release
         env:
@@ -115,3 +238,28 @@ jobs:
           else
             gh release create "$TAG" "${ASSETS[@]}" --title "$TITLE" --notes-file "$NOTES" --latest
           fi
+
+      - name: Verify published assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="$(tr -d '[:space:]' < release-bundle/VERSION)"
+          UNRAID="$(tr -d '[:space:]' < unraid-release/VERSION)"
+          ZORIN="$(tr -d '[:space:]' < desktop-release/VERSION)"
+          VPS="$(tr -d '[:space:]' < vps-release/VERSION)"
+          EXT="$(tr -d '[:space:]' < extension-release/VERSION)"
+          TAG="rclone-manager-v${BUNDLE}"
+          gh release view "$TAG" --json assets --jq '.assets[].name' | sort > /tmp/release-assets.txt
+          for NAME in \
+            "rclone-manager-unraid-v${UNRAID}.zip" \
+            "rclone-manager-desktop-zorinos-v${ZORIN}.zip" \
+            "rclone-manager-desktop-zorinos_${ZORIN}_all.deb" \
+            "rclone-manager-vps-v${VPS}.zip" \
+            "rclone-manager-vps-v${VPS}.tar.gz" \
+            "rclone-manager-drive-link-copier-v${EXT}.zip" \
+            "SHA256SUMS.txt"; do
+            grep -Fx "$NAME" /tmp/release-assets.txt >/dev/null || { echo "Missing release asset: $NAME" >&2; exit 1; }
+          done
+          echo "Release $TAG verified with all expected assets."
