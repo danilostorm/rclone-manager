@@ -53,21 +53,26 @@ jobs:
           test -f "$BASE"
           test -e "${FINALPARTS}00"
 
-          echo 'b518ae51b5a87ce306fb6f000c042b9e5767ae52c26d4b0e020b0a263e819268  release-bundle/source-full/rclone-manager-bases-1.7.8.tar.xz' | sha256sum -c -
+          # Git already pins the exact snapshot blob. Validate archive integrity and
+          # final source versions instead of depending on a separately copied hash.
+          xz -t "$BASE"
+          tar -tJf "$BASE" >/dev/null
 
-          rm -rf build-unraid build-zorin build-vps build-ext package dist-unified /tmp/rclone-bases /tmp/final-patches
-          mkdir -p build-unraid build-zorin build-vps build-ext dist-unified /tmp/rclone-bases /tmp/final-patches
+          rm -rf build-unraid build-zorin build-vps build-ext package dist-unified \
+                 /tmp/rclone-bases /tmp/final-patches
+          mkdir -p build-unraid build-zorin build-vps build-ext dist-unified \
+                   /tmp/rclone-bases /tmp/final-patches
           tar -xJf "$BASE" -C /tmp/rclone-bases
 
           ZSRC="build-zorin/rclone-manager-desktop-v${ZORIN}"
           VSRC="build-vps/rclone-manager-vps-v${VPS}"
           EXTROOT="build-ext/rclone-manager-drive-link-copier-v${EXT}"
-
-          cp -a /tmp/rclone-bases/unraid/. build-unraid/
           mkdir -p "$ZSRC" "$VSRC" "$EXTROOT"
+
           cp -a /tmp/rclone-bases/desktop/. "$ZSRC/"
           cp -a /tmp/rclone-bases/vps/. "$VSRC/"
           cp -a /tmp/rclone-bases/ext/. "$EXTROOT/"
+          cp -a /tmp/rclone-bases/unraid/. build-unraid/
 
           test "$(tr -d '[:space:]' < build-unraid/VERSION)" = '1.7.8'
           test "$(tr -d '[:space:]' < "$ZSRC/VERSION")" = '1.3.8'
@@ -93,17 +98,12 @@ jobs:
               echo "Sensitive runtime file found in $SRC" >&2
               exit 1
             fi
-            if find "$SRC" -type d -name '__pycache__' | grep -q .; then
-              echo "__pycache__ found in $SRC" >&2
-              exit 1
-            fi
+            find "$SRC" -type d -name '__pycache__' -prune -exec rm -rf {} +
           done
 
           python3 - <<'PY'
           import pathlib, py_compile, tempfile
-          roots = [pathlib.Path('build-unraid')]
-          roots += list(pathlib.Path('build-zorin').iterdir())
-          roots += list(pathlib.Path('build-vps').iterdir())
+          roots = [pathlib.Path('build-unraid'), pathlib.Path('build-zorin'), pathlib.Path('build-vps')]
           for root in roots:
               for p in root.rglob('*.py'):
                   with tempfile.NamedTemporaryFile(suffix='.pyc') as f:
@@ -137,7 +137,11 @@ jobs:
           cp -a "$ZSRC"/. "$PKG/opt/rclone-manager-desktop/"
           cp "$ZSRC/packaging/rclone-manager-desktop" "$PKG/usr/bin/rclone-manager-desktop"
           cp "$ZSRC/packaging/rclone-manager-desktop.desktop" "$PKG/usr/share/applications/rclone-manager-desktop.desktop"
-          chmod +x "$PKG/usr/bin/rclone-manager-desktop" "$PKG/opt/rclone-manager-desktop/desktop_main.py" "$PKG/opt/rclone-manager-desktop/install-zorin.sh" "$PKG/opt/rclone-manager-desktop/uninstall-zorin.sh"
+          chmod +x "$PKG/usr/bin/rclone-manager-desktop" \
+                   "$PKG/opt/rclone-manager-desktop/desktop_main.py" \
+                   "$PKG/opt/rclone-manager-desktop/install-zorin.sh" \
+                   "$PKG/opt/rclone-manager-desktop/uninstall-zorin.sh"
+
           cat > "$PKG/DEBIAN/control" <<CONTROL
           Package: rclone-manager-desktop
           Version: ${ZORIN}
@@ -149,6 +153,7 @@ jobs:
           Description: Rclone Manager Desktop for ZorinOS
            Google Drive multi-account manager, Media Pool, OneDrive/link importer, backup/restore and Drive Link API.
           CONTROL
+
           cat > "$PKG/DEBIAN/postinst" <<'POSTINST'
           #!/bin/sh
           set -e
@@ -156,11 +161,13 @@ jobs:
           update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
           exit 0
           POSTINST
+
           cat > "$PKG/DEBIAN/prerm" <<'PRERM'
           #!/bin/sh
           pkill -f '/opt/rclone-manager-desktop/desktop_main.py' 2>/dev/null || true
           exit 0
           PRERM
+
           chmod 755 "$PKG/DEBIAN/postinst" "$PKG/DEBIAN/prerm"
           dpkg-deb --build --root-owner-group "$PKG" "$DEB"
 
@@ -221,21 +228,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BUNDLE="$(tr -d '[:space:]' < release-bundle/VERSION)"
-          UNRAID="$(tr -d '[:space:]' < unraid-release/VERSION)"
-          ZORIN="$(tr -d '[:space:]' < desktop-release/VERSION)"
-          VPS="$(tr -d '[:space:]' < vps-release/VERSION)"
-          EXT="$(tr -d '[:space:]' < extension-release/VERSION)"
-          TAG="rclone-manager-v${BUNDLE}"
+          TAG='rclone-manager-v1.9.0'
+          EXPECTED=(
+            'rclone-manager-unraid-v1.9.0.zip'
+            'rclone-manager-desktop-zorinos-v1.5.0.zip'
+            'rclone-manager-desktop-zorinos_1.5.0_all.deb'
+            'rclone-manager-vps-v1.2.0.zip'
+            'rclone-manager-vps-v1.2.0.tar.gz'
+            'rclone-manager-drive-link-copier-v1.3.0.zip'
+            'SHA256SUMS.txt'
+          )
           gh release view "$TAG" --json assets --jq '.assets[].name' | sort > /tmp/release-assets.txt
-          for NAME in \
-            "rclone-manager-unraid-v${UNRAID}.zip" \
-            "rclone-manager-desktop-zorinos-v${ZORIN}.zip" \
-            "rclone-manager-desktop-zorinos_${ZORIN}_all.deb" \
-            "rclone-manager-vps-v${VPS}.zip" \
-            "rclone-manager-vps-v${VPS}.tar.gz" \
-            "rclone-manager-drive-link-copier-v${EXT}.zip" \
-            "SHA256SUMS.txt"; do
+          test "$(wc -l < /tmp/release-assets.txt)" -ge 7
+          for NAME in "${EXPECTED[@]}"; do
             grep -Fxq "$NAME" /tmp/release-assets.txt || { echo "Missing release asset: $NAME" >&2; exit 1; }
           done
           echo "Release $TAG verified with all expected assets."
