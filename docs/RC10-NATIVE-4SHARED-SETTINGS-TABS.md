@@ -30,7 +30,7 @@ A tela agora tem:
 
 Todos os campos existentes no RC9 foram preservados. A aba Integrações recebe o novo card 4shared com Consumer Key, Consumer Secret, callback, conectar/reconectar, testar e desconectar.
 
-As abas usam hash na URL (por exemplo `#settings-integrations`) e rolagem horizontal no mobile, preservando o layout desktop.
+As abas usam hash na URL (por exemplo `#settings-integrations`), lembram a aba ativa ao salvar e têm rolagem horizontal no mobile, preservando o layout desktop.
 
 ## Extensão 1.5.0
 
@@ -44,7 +44,7 @@ A captura 4shared continua baseada apenas nos links/IDs públicos presentes no D
 - assinatura OAuth HMAC-SHA1 comparada com `oauthlib` usando nonce/timestamp fixos.
 - teste mock do download oficial com `Range: bytes=123-`.
 - extração do ID `XXd34ZcNee` da URL `4s.io/video/...`.
-- comparação dos campos da tela Configurações: nenhum dos 51 campos do RC9 foi removido; 2 campos 4shared foram adicionados.
+- comparação dos campos da tela Configurações: nenhum dos 51 campos do RC9 foi removido; foram adicionados 2 campos configuráveis do 4shared e 1 campo oculto apenas para lembrar a aba ativa.
 - integridade ZIP/TAR e verificação de ausência de banco/cache/credenciais nos pacotes.
 
 ## Limitação de validação
