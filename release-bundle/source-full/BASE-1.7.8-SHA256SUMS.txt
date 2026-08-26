@@ -1,1 +1,0 @@
-b518ae51b5a87ce306fb6f000c042b9e5767ae52c26d4b0e020b0a263e819268  rclone-manager-bases-1.7.8.tar.xz

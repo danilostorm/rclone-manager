@@ -1,27 +1,7 @@
-# Runtime / secrets
 .env
-.env.*
-!.env.example
-*.db
-*.sqlite
-*.sqlite3
-rclone.conf
-**/rclone.conf
-**/data/
-**/cache/
-**/backups/
-**/logs/
+*.pyc
+__pycache__/
+.cache/
 *.log
-
-# Credentials / tokens
-*credentials*.json
-*client_secret*.json
-*token*.json
-*.pem
-*.key
-
-# OS/editor
+*.tmp
 .DS_Store
-*.swp
-.vscode/
-.idea/
