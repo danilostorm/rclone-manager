@@ -1,0 +1,38 @@
+services:
+  rclone-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: local/rclone-manager-vps:1.4.0-rc11-ha4.7.3
+    container_name: rclone-manager-vps
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${BIND_IP:-0.0.0.0}:${WEB_PORT:-8787}:8787"
+    environment:
+      APP_PORT: "8787"
+      ADMIN_USER: "${ADMIN_USER:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD}"
+      APP_SECRET: "${APP_SECRET}"
+      DATA_DIR: /data
+      DB_PATH: /data/rclone-manager.db
+      CACHE_ROOT: /cache
+      MOUNT_ROOT: /mnt/rclone-manager-remotes
+      PLATFORM_NAME: "${PLATFORM_NAME:-VPS Linux / Oracle Cloud}"
+      PLATFORM_SUBTITLE: "${PLATFORM_SUBTITLE:-VPS Linux}"
+      TZ: "${TZ:-America/Sao_Paulo}"
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse:/dev/fuse
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - ./data:/data
+      - ./cache:/cache
+      - type: bind
+        source: /mnt/rclone-manager-remotes
+        target: /mnt/rclone-manager-remotes
+        bind:
+          propagation: rshared
+    stop_grace_period: 45s
