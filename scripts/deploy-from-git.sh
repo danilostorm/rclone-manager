@@ -20,8 +20,11 @@ if [ -f "$ARCHIVE" ]; then
 elif [ -f "$ARCHIVE_B64" ]; then
   SRC_ARCHIVE="$TMP/$NAME"
   base64 -d "$ARCHIVE_B64" > "$SRC_ARCHIVE"
+elif compgen -G "$ARCHIVE_B64.part-*" >/dev/null; then
+  SRC_ARCHIVE="$TMP/$NAME"
+  cat "$ARCHIVE_B64".part-* | base64 -d > "$SRC_ARCHIVE"
 else
-  echo "Release ausente: $ARCHIVE ou $ARCHIVE_B64"; exit 1
+  echo "Release ausente: $ARCHIVE, $ARCHIVE_B64 ou partes .b64.part-*"; exit 1
 fi
 
 if [ -f "$ROOT/SHA256SUMS" ]; then
@@ -33,8 +36,6 @@ if [ -f "$ROOT/SHA256SUMS" ]; then
 fi
 
 tar -xzf "$SRC_ARCHIVE" -C "$TMP"
-# Base payload is the current Unraid build. VPS/Zorin differ only in the
-# installer and Compose definition, avoiding 3 almost-identical payloads.
 if [ "$PLATFORM" != unraid ]; then
   cp "$ROOT/platform/$PLATFORM/install.sh" "$TMP/install.sh"
   cp "$ROOT/platform/$PLATFORM/docker-compose.yml" "$TMP/docker-compose.yml"
