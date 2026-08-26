@@ -1,138 +1,84 @@
 # Rclone Manager
 
-Gerenciador de múltiplas contas Google Drive, transferências, uploads e bibliotecas de mídia para **Unraid**, **ZorinOS Desktop** e **Linux/VPS**, com extensão Chrome/Chromium integrada.
+Rclone Manager é um painel web para Google Drive/rclone, Media Pools, transferências, upload direto e MultiServer/High Availability.
 
-## Versões atuais
+## Versão atual
 
-| Edição | Versão | Status |
-|---|---:|---|
-| **Unraid** | **1.9.0** | Stable |
-| **ZorinOS Desktop** | **1.5.0** | Stable |
-| **Linux / VPS** | **1.2.0** | Stable |
-| **Drive Link Copier** | **1.3.0** | Stable |
-| **Windows 10/11** | **1.1.2** | Beta |
+**1.4.0-rc11-ha4.7.3** — distribuição por Git + Upload de Pastas + HA4.7/Drive Isolation.
 
-A release unificada é **`rclone-manager-v1.9.0`**.
+A árvore antiga de releases continua no repositório por compatibilidade, mas novas instalações e atualizações devem usar o fluxo Git abaixo.
 
-## Destaques da 1.9.0
+## Instalação e atualização por Git
 
-### Media Pool / Drive Union para Jellyfin e Plex
-
-O Manager pode reunir pastas de várias contas Google em um único mount virtual, sem mover nem copiar o conteúdo original.
-
-```text
-Conta Anime 01 ── pasta /Animes ──┐
-Conta Anime 02 ── pasta /Animes ──┤
-Conta Filmes   ── pasta /Filmes ──┤
-Conta Séries   ── pasta /Series ──┘
-                                  ↓
-                         Media Pool / Union
-                                  ↓
-                  /mnt/.../_media-pools/stormflix
-                                  ↓
-                         Jellyfin / Plex
-```
-
-Recursos:
-
-- seleção de conta e navegação por pastas antes de adicionar ao Pool;
-- múltiplas pastas da mesma conta;
-- categorias virtuais como `Animes`, `Filmes`, `Series` e `Desenhos`;
-- várias origens podem compartilhar a mesma categoria;
-- único ponto de montagem para Jellyfin/Plex;
-- status por origem e estado degradado quando uma origem falha;
-- espaço usado/livre agregado quando a API do Google fornece cota;
-- localizador de arquivo para descobrir a conta/pasta física;
-- roteamento opcional de novos uploads por categoria e espaço livre;
-- o roteamento de upload **não participa do streaming** e pode ficar desativado em bibliotecas somente leitura.
-
-Detalhes: [docs/MEDIA-POOL.md](docs/MEDIA-POOL.md).
-
-### Google Advanced: eclone / gclone + Service Accounts
-
-O Manager integra um motor Google avançado para cópias e operações server-side. Quando configurado, prefere **eclone**, aceita **gclone** como fallback e mantém a Drive API como fallback final.
-
-Inclui:
-
-- rotação de Service Accounts;
-- Rolling SA;
-- escolha inicial aleatória;
-- preload de serviços;
-- blacklist temporária após limite;
-- anti-thrashing;
-- cache de `about.storageQuota`;
-- usado/livre/total por conta quando disponível.
-
-O eclone é um projeto terceiro e é baixado do repositório upstream configurado pelo Manager; não é incorporado ao código deste repositório.
-
-Detalhes e limitações: [docs/GOOGLE-ADVANCED-ECLONE.md](docs/GOOGLE-ADVANCED-ECLONE.md).
-
-## Outros recursos
-
-- múltiplas contas Google Drive;
-- mounts via rclone/FUSE;
-- Centro de Transferências entre Drives;
-- acesso a **Compartilhados comigo**;
-- importação OneDrive/SharePoint → Google Drive;
-- fallback Microsoft Graph `/content`;
-- download por arquivo, upload confirmado e limpeza do temporário;
-- Backup Completo Portátil v2;
-- Centro de Upload com sessões resumíveis;
-- Speedtest com histórico;
-- Drive Link API integrada à extensão;
-- Google Drive → Google Drive via API oficial `files.copy` quando aplicável;
-- fila persistente, pausa, retomada, cancelamento e retry;
-- Google Advanced Engine com eclone/gclone e Service Accounts.
-
-## Código-fonte e reprodução da release
-
-A release 1.9.0 é **autocontida no próprio repositório**. `release-bundle/source-full/rclone-manager-bases-1.7.8.tar.xz` contém as quatro bases validadas e `final-1.9.0-patches-small.b64.part-*` contém o delta final. Os dois componentes possuem SHA-256 fixado e documentado.
-
-O workflow `.github/workflows/publish-unified-release.yml` valida o snapshot base, reconstitui e valida o delta, aplica os patches, checa versões, sintaxe e arquivos sensíveis, empacota cada edição e publica a GitHub Release. Não é necessário baixar uma release anterior para reconstruir a 1.9.0.
-
-Veja [docs/SOURCE-SNAPSHOTS.md](docs/SOURCE-SNAPSHOTS.md) para a cadeia completa de reconstrução.
-
-## Atualização
-
-### VPS / Oracle Cloud
+Clone o repositório em um diretório de código separado dos dados persistentes:
 
 ```bash
-cd /opt
-unzip -q rclone-manager-vps-v1.2.0.zip
-cd rclone-manager-vps-v1.2.0
-sudo ./install.sh
+git clone https://github.com/danilostorm/rclone-manager.git rclone-manager-src
+cd rclone-manager-src
+sudo ./git-install.sh
 ```
 
-A instalação padrão é `/opt/rclone-manager` e o instalador preserva `.env`, `data/`, `cache/` e `backups/`.
+O instalador detecta automaticamente **Unraid**, **VPS Ubuntu/Debian** ou **Zorin OS** e preserva `.env`, banco, OAuth, contas, cache/configuração e Media Pools existentes.
 
-### Unraid
-
-Extraia o ZIP por cima de `/mnt/user/appdata/rclone-manager`, preservando `.env`, `data/` e `cache/`, e execute:
+Depois da primeira instalação Git, o checkout recebe um `post-merge` local. Nas máquinas com root ou `sudo -n`, uma atualização futura pode ser feita simplesmente com:
 
 ```bash
-cd /mnt/user/appdata/rclone-manager
-chmod +x *.sh scripts/*.sh
-./update.sh
+git pull
 ```
 
-### ZorinOS Desktop
+Também existe o modo explícito:
 
 ```bash
-sudo apt install ./rclone-manager-desktop-zorinos_1.5.0_all.deb
+./git-update.sh
 ```
 
-Veja [docs/UPDATES.md](docs/UPDATES.md) para rollback e verificações.
+### Caminhos recomendados
+
+- Unraid: checkout em `/mnt/user/appdata/rclone-manager-src`; dados em `/mnt/user/appdata/rclone-manager`.
+- VPS/Oracle: checkout em `/opt/rclone-manager-src`; dados em `/opt/rclone-manager`.
+- Zorin OS: checkout em `/opt/rclone-manager-src`; dados em `/opt/rclone-manager`.
+
+## Release empacotada atual
+
+O Git contém o payload completo atual em `dist/rclone-manager-current-base.tar.gz`. O deploy valida SHA256 e usa o mesmo núcleo para as três plataformas, aplicando somente os overrides em `platform/vps` ou `platform/zorin`. Isso evita três cópias quase idênticas do aplicativo.
+
+## Upload de pastas — HA4.7.3
+
+A tela **Upload** aceita arquivos e pastas completas:
+
+- botão **Pasta inteira** usando `showDirectoryPicker` quando suportado;
+- fallback `webkitdirectory` em Chrome/Edge;
+- arrastar uma pasta para a área de upload percorre subpastas recursivamente;
+- preserva o **nome da pasta raiz**, subpastas e pastas vazias;
+- seleção mista de arquivos e diretórios;
+- deduplicação da fila;
+- upload resumível por chunks direto ao Google Drive;
+- ETA e taxa agregada;
+- `Repetir falhas` e `Limpar concluídos`;
+- conflito configurável: substituir, renomear ou ignorar;
+- até 4 uploads simultâneos;
+- roteamento por Media Pool para a conta com melhor espaço livre conhecido.
+
+## MultiServer / HA
+
+A linha HA atual inclui:
+
+- Storage HA e Media Pool estável em `/media-union/<biblioteca>`;
+- Gateway HA com múltiplos candidatos;
+- Controller HA com Witness independente e lease anti split-brain;
+- instalador automático de novos nós por SSH (senha ou chave privada);
+- upgrade/reinstalação inteligente e porta automática;
+- Tailscale/tailnet validation;
+- auto-integração de novos Storage/Gateway às bibliotecas;
+- runtime reconcile real (`mountpoint` + legibilidade);
+- stale FUSE auto-heal;
+- Drive Isolation: um remote quebrado deixa o Pool `degraded` sem derrubar os demais;
+- VFS cache read-only em `off` para evitar consumo de dezenas de GB por Drive.
+
+## Zorin OS
+
+A antiga linha Desktop estava defasada. A partir desta versão o Zorin usa o mesmo núcleo atual do VPS/Unraid, via Docker Compose, com serviço systemd, FUSE/rclone e atalho de desktop para `http://127.0.0.1:8787`.
 
 ## Segurança
 
-Este repositório não deve conter dados reais de instalação, incluindo `.env`, Client Secret, tokens OAuth, `rclone.conf`, bancos SQLite, JSONs de Service Account, chaves privadas, API Keys ou backups.
-
-Veja [SECURITY.md](SECURITY.md).
-
-## Terceiros
-
-- [rclone](https://github.com/rclone/rclone)
-- [eclone](https://github.com/ebadenes/eclone)
-- gclone, quando instalado separadamente pelo operador
-
-O uso e a distribuição de cada componente terceiro seguem as respectivas licenças upstream.
+Não publique `.env`, bancos, tokens OAuth, chaves SSH privadas ou backups de dados no Git. Esses itens permanecem fora dos pacotes e são preservados localmente durante updates.
