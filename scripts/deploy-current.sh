@@ -9,11 +9,16 @@ case "$PLATFORM" in
 esac
 
 # Existing HA hosts use the installed tree as the source-base for Git deploys.
-# Apply the duplicate-history overlay to that live source before deploy-from-git
-# copies it into the temporary build tree. The running container is untouched
-# until the normal validated deploy/recreate phase begins.
-if [ -f "$DEST/app/app.py" ] && [ -f "$ROOT/scripts/patch-duplicate-history.py" ]; then
-  python3 "$ROOT/scripts/patch-duplicate-history.py" "$DEST"
+# Apply overlays to that live source before deploy-from-git copies it into the
+# temporary build tree. The running container is untouched until the normal
+# validated deploy/recreate phase begins.
+if [ -f "$DEST/app/app.py" ]; then
+  if [ -f "$ROOT/scripts/patch-buzzheavier-fallback.py" ]; then
+    python3 "$ROOT/scripts/patch-buzzheavier-fallback.py" "$DEST"
+  fi
+  if [ -f "$ROOT/scripts/patch-duplicate-history.py" ]; then
+    python3 "$ROOT/scripts/patch-duplicate-history.py" "$DEST"
+  fi
 fi
 
 exec "$ROOT/scripts/deploy-from-git.sh" "$@"
