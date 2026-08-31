@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.3.3 — 2026-08-31
+
+- corrige updates/recreates que deixavam processos `rclone mount` antigos vivos no host e mounts FUSE em `ENOTCONN`;
+- o deploy Git agora limpa somente mounts gerenciados em `/mnt/rclone-manager-remotes` e stable paths em `/media-union` antes de subir a nova versão;
+- Drives e Media Pools são remontados pelo Manager após o recreate;
+- o MultiServer Agent é reiniciado e reconcilia automaticamente as bibliotecas persistidas em `state.json`, restaurando o Gateway/stable path com retry;
+- um Drive realmente indisponível continua sendo tratado como `degraded` e não bloqueia o deploy;
+- mantém a migração `live-source`, AkiraBox/BuzzHeavier, metadados de tamanho/extensão e VFS cache `off` das versões anteriores.
+
 ## 1.4.0-rc11-ha4.7.3.2 — 2026-08-31
 
 - corrige a migração Git quando o payload empacotado está incompleto/truncado;
