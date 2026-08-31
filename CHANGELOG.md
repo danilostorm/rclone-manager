@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.3.1 — 2026-08-31
+
+- corrige o SHA-256 do payload usado por `git-install.sh` / `git-update.sh`;
+- deploy via Git passa a aplicar um overlay idempotente sobre o payload atual antes do build;
+- adiciona reconhecimento de AkiraBox (`akirabox.to`, `akirabox.com`) e BuzzHeavier (`buzzheavier.com`, `bzzhr.co`, `bzzhr.to`);
+- adiciona resolução dos links externos antes do estágio download → upload;
+- preserva `size_bytes`, `size_text` e extensão enviados pela extensão do navegador;
+- Gerenciador de tarefas passa a expor tamanho total/conhecido e extensões quando disponíveis;
+- se o manifesto SHA estiver desatualizado mas o payload estiver limpo e rastreado pelo Git, o instalador avisa e continua; alterações locais no payload continuam bloqueando a instalação.
+
 ## 1.4.0-rc11-ha4.7.3 — 2026-08-26
 
 - consolidação do estado atual do projeto em uma única versão Git;
