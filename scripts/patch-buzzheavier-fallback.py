@@ -10,6 +10,40 @@ if not p.exists():
     raise SystemExit('BuzzHeavier overlay: app/drive_links.py ausente')
 
 s = p.read_text(encoding='utf-8')
+
+# HA4.7.3.9: o fallback usa urlsplit/urlunsplit/urljoin para trocar mirrors
+# e seguir HX-Redirect/Location. Algumas bases HA antigas tinham apenas urljoin
+# importado; garanta os três helpers de forma idempotente.
+def ensure_urllib_helpers(text):
+    needed = ['urljoin', 'urlsplit', 'urlunsplit']
+    m = re.search(r'(?m)^from urllib\.parse import ([^\n]+)$', text)
+    if m:
+        names = [x.strip() for x in m.group(1).split(',') if x.strip()]
+        changed = False
+        for name in needed:
+            if name not in names:
+                names.append(name)
+                changed = True
+        if changed:
+            text = text[:m.start()] + 'from urllib.parse import ' + ', '.join(names) + text[m.end():]
+        return text
+
+    # Sem import prévio de urllib.parse: insira junto aos imports do módulo.
+    lines = text.splitlines(True)
+    insert_at = 0
+    if lines and lines[0].startswith('#!'):
+        insert_at = 1
+    while insert_at < len(lines):
+        stripped = lines[insert_at].strip()
+        if not stripped or stripped.startswith('#') or stripped.startswith('import ') or stripped.startswith('from '):
+            insert_at += 1
+            continue
+        break
+    lines.insert(insert_at, 'from urllib.parse import urljoin, urlsplit, urlunsplit\n')
+    return ''.join(lines)
+
+s = ensure_urllib_helpers(s)
+
 marker = 'RM_BUZZHEAVIER_MIRROR_FALLBACK_V1'
 if marker not in s:
     pat = re.compile(r'(?s)\ndef _resolve_buzzheavier\(url\):.*?\n\ndef _resolve_akirabox\(url\):')
@@ -37,8 +71,6 @@ def _buzzheavier_candidates(url):
     if host in _BUZZHEAVIER_MIRRORS:
         hosts.append(host)
     hosts.extend(h for h in _BUZZHEAVIER_MIRRORS if h not in hosts)
-    # The mirrors share the same public file id/path. Keep query parameters,
-    # but always use HTTPS and discard fragments.
     return [urlunsplit(("https", h, parts.path or "/", parts.query, "")) for h in hosts]
 
 
@@ -56,7 +88,6 @@ def _resolve_buzzheavier(url):
                     errors.append(f"{urlsplit(candidate).hostname}: página HTTP {response.status_code}")
                     continue
                 text = _read_html_preview(response)
-                # Preserve same-origin cookies when the mirror supplies any.
                 cookies = response.cookies.get_dict() if getattr(response, "cookies", None) is not None else {}
             finally:
                 response.close()
@@ -111,7 +142,11 @@ def _resolve_buzzheavier(url):
             finally:
                 response.close()
         except Exception as exc:
-            errors.append(f"{urlsplit(candidate).hostname}: {exc}")
+            try:
+                host = urlsplit(candidate).hostname or candidate
+            except Exception:
+                host = candidate
+            errors.append(f"{host}: {exc}")
 
     detail = "; ".join(errors[-6:]) or "sem resposta dos mirrors"
     raise RuntimeError(f"BuzzHeavier bloqueou/recusou os mirrors disponíveis: {detail}")
@@ -119,8 +154,9 @@ def _resolve_buzzheavier(url):
 
 def _resolve_akirabox(url):'''
     s = s[:m.start()] + '\n' + replacement + s[m.end():]
-    p.write_text(s, encoding='utf-8')
+
+p.write_text(s, encoding='utf-8')
 
 with tempfile.NamedTemporaryFile(suffix='.pyc') as f:
     py_compile.compile(str(p), doraise=True, cfile=f.name)
-print('BuzzHeavier overlay OK: browser headers + mirror fallback')
+print('BuzzHeavier overlay OK: urllib helpers + browser headers + mirror fallback')
