@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.3.5 — 2026-08-31
+
+- corrige reconciliação de Gateway local ocorrendo antes de o Media Pool/Drive de origem terminar de remontar;
+- `reconcile-agent-state.sh` agora lê `transport` e `source_path` do backend persistido e, para backends `local`, aguarda a origem virar mountpoint real antes do `/v1/gateway/switch`;
+- evita falso sucesso onde `/media-union/<biblioteca>` virava apenas um bind de diretório vazio enquanto o Media Pool ainda não estava montado;
+- após o switch, confirma que o stable path é mountpoint e responde a `stat` antes de declarar `Gateway ... reconciliado`;
+- se a origem local não ficar pronta dentro da janela de recuperação, não aponta o stable path para pasta vazia e deixa o monitor HA tentar novamente;
+- mantém sincronização automática do Agent, descoberta dinâmica de token/env em Oracle/VPS, limpeza preventiva de FUSE stale, Drive Isolation, AkiraBox/BuzzHeavier e VFS cache `off`.
+
 ## 1.4.0-rc11-ha4.7.3.4 — 2026-08-31
 
 - corrige VPS/Oracle onde o MultiServer Agent permanecia com versão antiga porque o serviço systemd não era sincronizado de forma confiável;
