@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.3.11 — 2026-08-31
+
+- corrige o corte horizontal da tela **API / Extensão**, principalmente a coluna **AÇÕES** no Oracle/VPS;
+- adiciona overlay idempotente que mantém o conteúdo principal dentro do viewport e cria rolagem horizontal somente na tabela quando necessário;
+- redistribui as sete colunas da fila e reserva largura real para os botões de ação, preservando o layout em telas menores;
+- o overlay é aplicado automaticamente em hosts HA existentes pelo fluxo `git pull --ff-only` / `deploy-current.sh`.
+
+## 1.4.0-rc11-ha4.7.3.10 — 2026-08-31
+
+- expande links de lista do Pixeldrain pela API pública antes de enfileirar os itens;
+- integra o overlay de listas Pixeldrain ao deploy Git atual, inclusive em instalações HA existentes.
+
 ## 1.4.0-rc11-ha4.7.3.9 — 2026-08-31
 
 - corrige `name 'urlsplit' is not defined` no resolver BuzzHeavier em bases HA antigas;
