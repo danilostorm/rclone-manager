@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.3.12 — 2026-08-31
+
+- aplica o layout fluido em todas as telas do painel, aproveitando melhor a largura disponível no desktop;
+- adiciona tratamento global para tabelas largas com rolagem horizontal somente quando necessário;
+- otimiza grids, cabeçalhos, formulários e conteúdo longo para resoluções menores;
+- adiciona navegação mobile off-canvas com botão de menu, backdrop e fechamento por link/Esc;
+- em celulares, o conteúdo passa a ocupar 100% da tela e os grids são reduzidos progressivamente para duas e depois uma coluna;
+- o overlay global é aplicado automaticamente no AEROCOOL e Oracle/VPS pelo fluxo normal de `git pull --ff-only`.
+
 ## 1.4.0-rc11-ha4.7.3.11 — 2026-08-31
 
 - corrige o corte horizontal da tela **API / Extensão**, principalmente a coluna **AÇÕES** no Oracle/VPS;
