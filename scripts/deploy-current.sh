@@ -13,6 +13,9 @@ esac
 # temporary build tree. The running container is untouched until the normal
 # validated deploy/recreate phase begins.
 if [ -f "$DEST/app/app.py" ]; then
+  if [ -f "$ROOT/scripts/patch-api-layout.py" ]; then
+    python3 "$ROOT/scripts/patch-api-layout.py" "$DEST"
+  fi
   if [ -f "$ROOT/scripts/patch-buzzheavier-fallback.py" ]; then
     python3 "$ROOT/scripts/patch-buzzheavier-fallback.py" "$DEST"
   fi
