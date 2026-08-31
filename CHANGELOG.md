@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.3.9 — 2026-08-31
+
+- corrige `name 'urlsplit' is not defined` no resolver BuzzHeavier em bases HA antigas;
+- o overlay agora garante de forma idempotente os imports `urljoin`, `urlsplit` e `urlunsplit` antes de ativar fallback/mirrors;
+- mantém suporte a `HX-Redirect` e `Location` para seguir a URL final retornada pelo endpoint `/download`.
+
+## 1.4.0-rc11-ha4.7.3.8 — 2026-08-31
+
+- adiciona headers de navegador e fallback automático entre `buzzheavier.com`, `bzzhr.co` e `bzzhr.to`;
+- preserva cookies da página e envia `HX-Request`, `HX-Current-URL` e `Referer` ao endpoint `/download`;
+- segue `HX-Redirect`/`Location` retornado pelo BuzzHeavier antes do estágio de download.
+
 ## 1.4.0-rc11-ha4.7.3.7 — 2026-08-31
 
 - adiciona histórico persistente por link para a extensão, independente da limpeza do histórico visual de tarefas;
