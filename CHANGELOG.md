@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.3.7 — 2026-08-31
+
+- adiciona histórico persistente por link para a extensão, independente da limpeza do histórico visual de tarefas;
+- cada item é registrado somente depois de uma cópia/upload concluído com sucesso;
+- novo endpoint `POST /api/v1/extension/history/check` (`drive-link-v13`) informa se o link já foi importado, destino, tarefa e data da última importação;
+- o histórico é retroalimentado automaticamente a partir de tarefas antigas com `completed_items > 0`, aproveitando downloads já concluídos antes desta versão;
+- normaliza Google Drive por ID, remove parâmetros de rastreamento e trata `href.li`/Dropbox para reduzir falsos negativos;
+- adiciona `scripts/deploy-current.sh` para aplicar overlays atuais à fonte live antes do deploy Git validado;
+- `git-install.sh` e `git-update.sh` passam a usar esse wrapper, preservando o fluxo simples `git pull --ff-only` após uma reinstalação única do hook;
+- extensão v1.9.0 marca **JÁ BAIXADO**, pergunta se deseja baixar novamente e troca o bloco verde grande por uma barra compacta de servidor/versão.
+
 ## 1.4.0-rc11-ha4.7.3.6 — 2026-08-31
 
 - corrige corrida de startup em que os Drives já voltavam como `fuse.rclone`, mas o Media Pool permanecia desmontado e `/media-union` ficava vazio;
