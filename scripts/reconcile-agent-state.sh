@@ -1,31 +1,92 @@
 #!/usr/bin/env bash
 set -u
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VERSION="$(tr -d '\r\n' < "$ROOT/VERSION" 2>/dev/null || true)"
 PLATFORM="${1:-}"
+SERVICE="rclone-manager-multiserver-agent.service"
+
 case "$PLATFORM" in
   unraid)
     ENV_FILE=/boot/config/plugins/rclone-manager-multiserver-agent/agent.env
     DEFAULT_STATE=/boot/config/plugins/rclone-manager-multiserver-agent/state
+    DEST=/mnt/user/appdata/rclone-manager
+    LIVE_AGENT=/boot/config/plugins/rclone-manager-multiserver-agent/agent.py
     ;;
   *)
-    ENV_FILE=/opt/rclone-manager-multiserver-agent/agent.env
+    ENV_FILE=""
     DEFAULT_STATE=/var/lib/rclone-manager-multiserver
+    DEST=/opt/rclone-manager
+    LIVE_AGENT=/opt/rclone-manager-multiserver-agent/agent.py
     ;;
 esac
 
-[ -f "$ENV_FILE" ] || exit 0
+# Em VPS/Ubuntu o instalador histórico nem sempre guardou agent.env em /opt.
+# Antes de reconciliar, sincronize o Agent empacotado pelo deploy e descubra
+# o EnvironmentFile real do serviço systemd (ou leia o ambiente do processo).
+if [ "$PLATFORM" != "unraid" ] && command -v systemctl >/dev/null 2>&1; then
+  if systemctl cat "$SERVICE" >/dev/null 2>&1; then
+    if [ -f "$DEST/agent/agent.py" ]; then
+      if [ ! -f "$LIVE_AGENT" ] || ! cmp -s "$DEST/agent/agent.py" "$LIVE_AGENT"; then
+        echo "Atualizando MultiServer Agent para ${VERSION:-versão do deploy}..."
+        install -D -m 755 "$DEST/agent/agent.py" "$LIVE_AGENT"
+        systemctl restart "$SERVICE" || true
+        sleep 2
+      fi
+    fi
 
-read_env() {
+    # Descobre EnvironmentFile a partir da unit, aceitando EnvironmentFile=-/path.
+    detected_env="$(systemctl cat "$SERVICE" 2>/dev/null |
+      sed -nE 's/^[[:space:]]*EnvironmentFile=[-]?"?([^"[:space:]]+)"?.*/\1/p' |
+      tail -1)"
+    if [ -n "$detected_env" ] && [ -f "$detected_env" ]; then
+      ENV_FILE="$detected_env"
+    else
+      for candidate in \
+        /opt/rclone-manager-multiserver-agent/agent.env \
+        /etc/default/rclone-manager-multiserver-agent \
+        /etc/rclone-manager-multiserver-agent.env; do
+        if [ -f "$candidate" ]; then
+          ENV_FILE="$candidate"
+          break
+        fi
+      done
+    fi
+  fi
+fi
+
+read_env_file() {
   local key="$1"
+  [ -n "${ENV_FILE:-}" ] && [ -f "$ENV_FILE" ] || return 0
   sed -n "s/^${key}=//p" "$ENV_FILE" | tail -1 | tr -d '\r\n'
 }
 
-TOKEN="$(read_env MS_AGENT_TOKEN)"
-BIND="$(read_env MS_BIND)"
-PORT="$(read_env MS_PORT)"
-STATE_DIR="$(read_env MS_STATE_DIR)"
+read_proc_env() {
+  local key="$1" pid=""
+  [ "$PLATFORM" != "unraid" ] || return 0
+  command -v systemctl >/dev/null 2>&1 || return 0
+  pid="$(systemctl show -p MainPID --value "$SERVICE" 2>/dev/null || true)"
+  [ -n "$pid" ] && [ "$pid" != "0" ] && [ -r "/proc/$pid/environ" ] || return 0
+  tr '\0' '\n' < "/proc/$pid/environ" |
+    sed -n "s/^${key}=//p" | tail -1 | tr -d '\r\n'
+}
 
-[ -n "$TOKEN" ] || exit 0
+get_env() {
+  local key="$1" value=""
+  value="$(read_env_file "$key")"
+  [ -n "$value" ] || value="$(read_proc_env "$key")"
+  printf '%s' "$value"
+}
+
+TOKEN="$(get_env MS_AGENT_TOKEN)"
+BIND="$(get_env MS_BIND)"
+PORT="$(get_env MS_PORT)"
+STATE_DIR="$(get_env MS_STATE_DIR)"
+
+if [ -z "$TOKEN" ]; then
+  echo "AVISO: token do MultiServer Agent não pôde ser descoberto; Gateway será reconciliado pelo monitor HA." >&2
+  exit 0
+fi
 [ -n "$BIND" ] || BIND=127.0.0.1
 [ -n "$PORT" ] || PORT=8765
 [ -n "$STATE_DIR" ] || STATE_DIR="$DEFAULT_STATE"
@@ -33,15 +94,21 @@ STATE_FILE="$STATE_DIR/state.json"
 [ -f "$STATE_FILE" ] || exit 0
 command -v curl >/dev/null 2>&1 || exit 0
 
-# Aguarde o Agent responder antes de restaurar os stable paths.
+# Aguarde o Agent responder depois de eventual restart/sincronização.
+agent_ready=0
 for _ in $(seq 1 30); do
   if curl -fsS --connect-timeout 2 \
       -H "Authorization: Bearer $TOKEN" \
       "http://${BIND}:${PORT}/v1/health" >/dev/null 2>&1; then
+    agent_ready=1
     break
   fi
   sleep 1
 done
+[ "$agent_ready" -eq 1 ] || {
+  echo "AVISO: MultiServer Agent não respondeu em ${BIND}:${PORT}; monitor HA tentará novamente." >&2
+  exit 0
+}
 
 echo "Reconciliando bibliotecas persistidas no MultiServer Agent..."
 
