@@ -21,6 +21,14 @@ case "$PLATFORM" in
     ;;
 esac
 
+# HA4.7.3.6: o Manager pode ficar healthy depois que os Drives já voltaram,
+# mas antes de o Media Pool terminar a própria montagem. Recupere/valide os
+# pools antes de permitir que o Agent aponte /media-union para uma origem local.
+if [ -f "$ROOT/scripts/recover-media-pools.sh" ]; then
+  bash "$ROOT/scripts/recover-media-pools.sh" "$PLATFORM" || \
+    echo "AVISO: recuperação de Media Pools retornou erro; Gateway local só será ativado se a origem estiver realmente montada." >&2
+fi
+
 # Em VPS/Ubuntu o instalador histórico nem sempre guardou agent.env em /opt.
 # Antes de reconciliar, sincronize o Agent empacotado pelo deploy e descubra
 # o EnvironmentFile real do serviço systemd (ou leia o ambiente do processo).
@@ -140,7 +148,7 @@ while IFS=$'\t' read -r slug backend stable transport source; do
     source_ready=0
     echo "Aguardando origem local de $slug ficar pronta: $source"
     for _ in $(seq 1 60); do
-      if mountpoint -q "$source" 2>/dev/null; then
+      if findmnt -rn -M "$source" -o FSTYPE 2>/dev/null | grep -qx 'fuse.rclone'; then
         if timeout 5 stat "$source" >/dev/null 2>&1; then
           source_ready=1
           break
@@ -149,7 +157,7 @@ while IFS=$'\t' read -r slug backend stable transport source; do
       sleep 2
     done
     if [ "$source_ready" -ne 1 ]; then
-      echo "AVISO: origem local de $slug não virou mountpoint em tempo hábil ($source); stable path NÃO será apontado para diretório vazio." >&2
+      echo "AVISO: origem local de $slug não virou fuse.rclone em tempo hábil ($source); stable path NÃO será apontado para diretório vazio." >&2
       continue
     fi
   fi
