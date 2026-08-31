@@ -35,7 +35,6 @@ if [ "$PLATFORM" != "unraid" ] && command -v systemctl >/dev/null 2>&1; then
       fi
     fi
 
-    # Descobre EnvironmentFile a partir da unit, aceitando EnvironmentFile=-/path.
     detected_env="$(systemctl cat "$SERVICE" 2>/dev/null |
       sed -nE 's/^[[:space:]]*EnvironmentFile=[-]?"?([^"[:space:]]+)"?.*/\1/p' |
       tail -1)"
@@ -94,7 +93,6 @@ STATE_FILE="$STATE_DIR/state.json"
 [ -f "$STATE_FILE" ] || exit 0
 command -v curl >/dev/null 2>&1 || exit 0
 
-# Aguarde o Agent responder depois de eventual restart/sincronização.
 agent_ready=0
 for _ in $(seq 1 30); do
   if curl -fsS --connect-timeout 2 \
@@ -119,16 +117,43 @@ try:
     d=json.load(open(p, encoding='utf-8'))
 except Exception:
     raise SystemExit(0)
+backends=d.get('backends') or {}
 for slug,lib in (d.get('libraries') or {}).items():
     if not isinstance(lib, dict):
         continue
     bid=str(lib.get('backend_id') or '').strip()
     stable=str(lib.get('stable_path') or '').strip()
+    backend=backends.get(bid) if isinstance(backends, dict) else None
+    backend=backend if isinstance(backend, dict) else {}
+    transport=str(backend.get('transport') or '').strip()
+    source=str(backend.get('source_path') or '').strip()
     if slug and bid and stable:
-        print(f"{slug}\t{bid}\t{stable}")
+        print(f"{slug}\t{bid}\t{stable}\t{transport}\t{source}")
 PY
-while IFS=$'\t' read -r slug backend stable; do
+while IFS=$'\t' read -r slug backend stable transport source; do
   [ -n "$slug" ] || continue
+
+  # Um backend local só pode ser ativado quando a origem real já estiver
+  # montada. Isso impede bind de diretório vazio e falso mounted/readable=true
+  # enquanto Drives/Media Pool ainda estão remontando após update/recreate.
+  if [ "$transport" = "local" ] && [ -n "$source" ]; then
+    source_ready=0
+    echo "Aguardando origem local de $slug ficar pronta: $source"
+    for _ in $(seq 1 60); do
+      if mountpoint -q "$source" 2>/dev/null; then
+        if timeout 5 stat "$source" >/dev/null 2>&1; then
+          source_ready=1
+          break
+        fi
+      fi
+      sleep 2
+    done
+    if [ "$source_ready" -ne 1 ]; then
+      echo "AVISO: origem local de $slug não virou mountpoint em tempo hábil ($source); stable path NÃO será apontado para diretório vazio." >&2
+      continue
+    fi
+  fi
+
   ok=0
   for _ in $(seq 1 30); do
     payload="$(python3 - "$slug" "$backend" "$stable" <<'PY'
@@ -151,9 +176,13 @@ except Exception:
 raise SystemExit(0 if d.get('ok') else 1)
 PY
     then
-      echo "Gateway $slug reconciliado: $backend -> $stable"
-      ok=1
-      break
+      # Não aceite sucesso HTTP sozinho: confirme que o stable path virou
+      # mountpoint e responde a stat antes de declarar a reconciliação pronta.
+      if mountpoint -q "$stable" 2>/dev/null && timeout 5 stat "$stable" >/dev/null 2>&1; then
+        echo "Gateway $slug reconciliado: $backend -> $stable"
+        ok=1
+        break
+      fi
     fi
     sleep 2
   done
