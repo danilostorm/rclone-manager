@@ -16,6 +16,9 @@ if [ -f "$DEST/app/app.py" ]; then
   if [ -f "$ROOT/scripts/patch-buzzheavier-fallback.py" ]; then
     python3 "$ROOT/scripts/patch-buzzheavier-fallback.py" "$DEST"
   fi
+  if [ -f "$ROOT/scripts/patch-pixeldrain-list.py" ]; then
+    python3 "$ROOT/scripts/patch-pixeldrain-list.py" "$DEST"
+  fi
   if [ -f "$ROOT/scripts/patch-duplicate-history.py" ]; then
     python3 "$ROOT/scripts/patch-duplicate-history.py" "$DEST"
   fi
