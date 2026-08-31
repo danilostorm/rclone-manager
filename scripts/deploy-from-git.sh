@@ -138,6 +138,15 @@ fi
 
 # Mantém banco/OAuth/cache/configuração; troca apenas código/arquivos de deploy.
 docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+
+# HA4.7.3.3: antes do novo container subir, elimine processos/mounts FUSE do
+# runtime anterior. Sem isto, rclone mounts podem sobreviver ao recreate e
+# reaparecer como ENOTCONN, derrubando Drives, Media Pools e /media-union.
+if [ -f "$ROOT/scripts/cleanup-runtime-mounts.sh" ]; then
+  bash "$ROOT/scripts/cleanup-runtime-mounts.sh" "$PLATFORM" || \
+    echo 'AVISO: limpeza preventiva de mounts retornou erro; continuando com o deploy.' >&2
+fi
+
 find "$DEST" -mindepth 1 -maxdepth 1 \
   ! -name data ! -name cache ! -name backups ! -name .env \
   -exec rm -rf -- {} +
@@ -213,6 +222,14 @@ if systemctl list-unit-files 2>/dev/null | grep -q '^rclone-manager-witness.serv
 fi
 
 [ ! -x /usr/local/sbin/rclone-manager-agent-firewall.sh ] || /usr/local/sbin/rclone-manager-agent-firewall.sh || true
+
+# Dê tempo aos Drives/Media Pools para remontarem e restaure os stable paths
+# persistidos no Agent. A rotina possui retry; um Drive realmente indisponível
+# não impede o deploy e continuará sendo tratado como degraded pelo Manager.
+sleep 8
+if [ -f "$ROOT/scripts/reconcile-agent-state.sh" ]; then
+  bash "$ROOT/scripts/reconcile-agent-state.sh" "$PLATFORM" || true
+fi
 
 echo
 echo "Rclone Manager $VERSION aplicado via Git."
