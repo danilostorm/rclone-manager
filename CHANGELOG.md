@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.3.6 — 2026-08-31
+
+- corrige corrida de startup em que os Drives já voltavam como `fuse.rclone`, mas o Media Pool permanecia desmontado e `/media-union` ficava vazio;
+- adiciona `scripts/recover-media-pools.sh`, que espera os Drives-base, valida cada Media Pool e, se necessário, remonta diretamente pelo container com os mesmos parâmetros read-only/VFS cache `off` usados pelo Manager;
+- a recuperação de Media Pools roda antes da reconciliação do MultiServer Agent;
+- Gateway local só é ativado quando a origem do Media Pool é realmente `fuse.rclone`, evitando bind de diretório vazio;
+- mantém sincronização automática do Agent, descoberta dinâmica de token/env, limpeza de FUSE stale, Drive Isolation, AkiraBox/BuzzHeavier e metadados de tamanho/extensão.
+
 ## 1.4.0-rc11-ha4.7.3.5 — 2026-08-31
 
 - corrige reconciliação de Gateway local ocorrendo antes de o Media Pool/Drive de origem terminar de remontar;
