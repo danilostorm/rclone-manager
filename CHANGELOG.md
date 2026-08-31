@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.3.4 — 2026-08-31
+
+- corrige VPS/Oracle onde o MultiServer Agent permanecia com versão antiga porque o serviço systemd não era sincronizado de forma confiável;
+- `reconcile-agent-state.sh` agora sincroniza o Agent empacotado pelo deploy com o Agent vivo antes da reconciliação;
+- descobre automaticamente o `EnvironmentFile` real da unit systemd e, se necessário, lê `MS_AGENT_TOKEN`, bind, porta e state dir diretamente do ambiente do processo;
+- remove a dependência do caminho fixo `/opt/rclone-manager-multiserver-agent/agent.env`, que não existe em algumas instalações históricas;
+- após eventual restart do Agent, aguarda o health e restaura as bibliotecas persistidas em `state.json` via `/v1/gateway/switch` com retry;
+- evita o caso em que um restart manual/deploy deixa `/media-union/<biblioteca>` como diretório vazio mesmo com Drives/Media Pool saudáveis;
+- mantém limpeza preventiva de FUSE stale, remount de Drives/Media Pools, AkiraBox/BuzzHeavier, metadados e VFS cache `off`.
+
 ## 1.4.0-rc11-ha4.7.3.3 — 2026-08-31
 
 - corrige updates/recreates que deixavam processos `rclone mount` antigos vivos no host e mounts FUSE em `ENOTCONN`;
