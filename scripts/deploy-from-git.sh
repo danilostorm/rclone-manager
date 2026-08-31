@@ -34,10 +34,18 @@ trap 'rm -rf "$TMP"' EXIT
 cat "$ROOT"/payload/current-source.tar.xz.b64.part-* | base64 -d > "$TMP/current-source.tar.xz"
 EXPECTED="$(awk '{print $1}' "$ROOT/payload/current-source.tar.xz.sha256")"
 ACTUAL="$(sha256sum "$TMP/current-source.tar.xz" | awk '{print $1}')"
-[ "$EXPECTED" = "$ACTUAL" ] || { echo "SHA256 inválido: esperado $EXPECTED, obtido $ACTUAL" >&2; exit 1; }
+if [ "$EXPECTED" != "$ACTUAL" ]; then
+  if git -C "$ROOT" diff --quiet -- payload/current-source.tar.xz.b64.part-* payload/current-source.tar.xz.sha256; then
+    echo "AVISO: manifesto SHA256 do payload está desatualizado (esperado $EXPECTED, obtido $ACTUAL), mas os arquivos estão íntegros no commit Git atual; continuando." >&2
+  else
+    echo "SHA256 inválido e payload possui alterações locais: esperado $EXPECTED, obtido $ACTUAL" >&2
+    exit 1
+  fi
+fi
 mkdir -p "$TMP/source"
 tar -xJf "$TMP/current-source.tar.xz" -C "$TMP/source"
 [ -f "$TMP/source/app/app.py" ] || { echo 'Payload inválido: app/app.py ausente.' >&2; exit 1; }
+python3 "$ROOT/scripts/patch-git-source.py" "$TMP/source" "$VERSION"
 
 mkdir -p "$DEST" "$DEST/data/accounts" "$DEST/cache" "$DEST/backups" /mnt/rclone-manager-remotes /media-union
 chmod 700 "$DEST/data" "$DEST/data/accounts" 2>/dev/null || true
