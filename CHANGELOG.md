@@ -1,14 +1,21 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.3.2 — 2026-08-31
+
+- corrige a migração Git quando o payload empacotado está incompleto/truncado;
+- hosts HA4.x já instalados passam a usar a própria instalação atual como fonte-base segura e o Git aplica somente o overlay novo;
+- nenhuma produção é parada antes de validar fonte, overlay e `py_compile`;
+- banco SQLite, OAuth/tokens, contas, Media Pools, cache e `.env` continuam preservados;
+- mantém AkiraBox/BuzzHeavier e metadados de tamanho/extensão do HA4.7.3.1;
+- o caminho de payload continua com SHA-256 + `xz -t` obrigatório para instalações sem uma base HA existente.
+
 ## 1.4.0-rc11-ha4.7.3.1 — 2026-08-31
 
-- corrige o SHA-256 do payload usado por `git-install.sh` / `git-update.sh`;
-- deploy via Git passa a aplicar um overlay idempotente sobre o payload atual antes do build;
+- deploy via Git passa a aplicar um overlay idempotente antes do build;
 - adiciona reconhecimento de AkiraBox (`akirabox.to`, `akirabox.com`) e BuzzHeavier (`buzzheavier.com`, `bzzhr.co`, `bzzhr.to`);
 - adiciona resolução dos links externos antes do estágio download → upload;
 - preserva `size_bytes`, `size_text` e extensão enviados pela extensão do navegador;
-- Gerenciador de tarefas passa a expor tamanho total/conhecido e extensões quando disponíveis;
-- se o manifesto SHA estiver desatualizado mas o payload estiver limpo e rastreado pelo Git, o instalador avisa e continua; alterações locais no payload continuam bloqueando a instalação.
+- Gerenciador de tarefas passa a expor tamanho total/conhecido e extensões quando disponíveis.
 
 ## 1.4.0-rc11-ha4.7.3 — 2026-08-26
 
