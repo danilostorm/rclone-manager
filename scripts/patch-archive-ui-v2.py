@@ -219,3 +219,5 @@ if tpl.exists():
     tpl.write_text(text, encoding='utf-8')
 
 print('Archive UI v2 OK: status API estável + fila compactados responsiva')
+
+# archive-controls-planned
