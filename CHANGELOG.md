@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.3 — 2026-09-24
+
+- corrige o HTTP 404 da extensão ao acompanhar tarefas de compactados: jobs ZIP/RAR/7z/TAR agora possuem endpoint de status dedicado protegido pela API Key;
+- separa explicitamente **fila normal** e **fila de compactados** para não mostrar tarefa de archive como “Aguardando fila” na fila errada;
+- adiciona painel responsivo **Fila de compactados** na tela API / Extensão, com contadores de em andamento, aguardando e aguardando senha;
+- substitui o painel compacto antigo por cards responsivos, evitando a tabela esmagada/horizontal mostrada em telas menores;
+- atualiza o rótulo visual de Drive Link API v11 para v14;
+- extensão v1.10.2 corrige alinhamento dos checkboxes/campos, acompanha progresso real do archive job e oculta o 404/painel de controles da fila normal quando a tarefa é de compactado.
+
 ## 1.4.0-rc11-ha4.7.4.2 — 2026-09-23
 
 - corrige uma falha de compatibilidade do HA4.7.4.1 que podia classificar `@require_csrf` como se fosse autenticação do painel;
