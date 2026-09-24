@@ -195,10 +195,12 @@ assign_idx = assign_end
 indent_match = re.match(r"^(\s*)", lines[dest_assign.lineno - 1])
 indent = indent_match.group(1) if indent_match else "    "
 
-# Insert helper before _run_job. Account for the shifted assignment index.
-lines.insert(fn_line, helper + "\n")
-shift = helper.count("\n") + 1
-assign_idx += shift
+# Insert helper before _run_job as real source lines. Account for the shifted
+# assignment index using list entries, not the number of newlines inside one
+# string item.
+helper_lines = (helper + "\n").splitlines(keepends=True)
+lines[fn_line:fn_line] = helper_lines
+assign_idx += len(helper_lines)
 
 inject = (
     f"{indent}dest_prefix = _rm_archive_smart_dest("
