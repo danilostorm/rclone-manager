@@ -101,6 +101,9 @@ fi
 if [ -f "$ROOT/scripts/patch-archive-rar.py" ]; then
   python3 "$ROOT/scripts/patch-archive-rar.py" "$TMP/source"
 fi
+if [ -f "$ROOT/scripts/patch-archive-smart-folder.py" ]; then
+  python3 "$ROOT/scripts/patch-archive-smart-folder.py" "$TMP/source"
+fi
 if [ -f "$ROOT/scripts/patch-archive-ui-v2.py" ]; then
   python3 "$ROOT/scripts/patch-archive-ui-v2.py" "$TMP/source"
 fi
