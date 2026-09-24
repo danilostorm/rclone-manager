@@ -1152,3 +1152,137 @@ if tpl.exists():
         tpl.write_text(page, encoding='utf-8')
 
 print('Archive style v3 OK: fila de compactados com card/stats/ações responsivos')
+
+
+# RM_ARCHIVE_EXTERNAL_CSS_V1
+# Some deployments serve the panel with a CSP/style policy that leaves injected
+# inline <style> blocks unapplied. Publish the archive queue stylesheet as a
+# normal Flask static asset and link it from the template.
+if tpl.exists():
+    static_dir = appdir / 'static'
+    static_dir.mkdir(parents=True, exist_ok=True)
+    css_file = static_dir / 'archive-manager-v3.css'
+    css_file.write_text(r'''
+#rmArchiveManagerV2{
+  display:block!important;width:100%!important;margin:16px 0 18px!important;padding:16px!important;
+  border:1px solid #26354a!important;border-radius:14px!important;background:#0f1724!important;
+  color:#e7edf6!important;box-shadow:0 1px 0 rgba(255,255,255,.02) inset!important;overflow:hidden!important
+}
+#rmArchiveManagerV2 *{box-sizing:border-box!important}
+#rmArchiveManagerV2 .rm-arc-head{
+  display:flex!important;align-items:flex-start!important;justify-content:space-between!important;
+  gap:14px!important;flex-wrap:wrap!important;margin:0 0 14px!important
+}
+#rmArchiveManagerV2 .rm-arc-title{
+  display:block!important;margin:0!important;font-size:18px!important;line-height:1.25!important;
+  font-weight:800!important;letter-spacing:-.01em!important;color:#f4f7fb!important
+}
+#rmArchiveManagerV2 .rm-arc-sub{
+  margin-top:4px!important;font-size:12px!important;line-height:1.45!important;color:#8fb0d6!important
+}
+#rmArchiveManagerV2 .rm-arc-toolbar{
+  display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:wrap!important;margin-left:auto!important
+}
+#rmArchiveManagerV2 #rmArcRefreshV2,
+#rmArchiveManagerV2 .rm-arc-toolbar button,
+#rmArchiveManagerV2 .rm-arc-actions button{
+  appearance:none!important;min-height:34px!important;padding:7px 11px!important;
+  border:1px solid #3b4b63!important;border-radius:9px!important;background:#172233!important;
+  color:#eaf1fb!important;font-size:12px!important;font-weight:700!important;line-height:1!important;
+  cursor:pointer!important
+}
+#rmArchiveManagerV2 #rmArcRefreshV2:hover,
+#rmArchiveManagerV2 .rm-arc-toolbar button:hover,
+#rmArchiveManagerV2 .rm-arc-actions button:hover{background:#1d2b40!important;border-color:#536987!important}
+#rmArchiveManagerV2 .rm-arc-stats{
+  display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:10px!important;margin:0 0 12px!important
+}
+#rmArchiveManagerV2 .rm-arc-stat{
+  display:flex!important;flex-direction:column!important;justify-content:center!important;
+  min-height:66px!important;padding:11px 13px!important;border:1px solid #26354a!important;
+  border-radius:11px!important;background:#111c2c!important;min-width:0!important
+}
+#rmArchiveManagerV2 .rm-arc-stat span{
+  display:block!important;font-size:10px!important;line-height:1.2!important;font-weight:700!important;
+  letter-spacing:.04em!important;color:#83a7d0!important
+}
+#rmArchiveManagerV2 .rm-arc-stat b{
+  display:block!important;margin-top:5px!important;font-size:20px!important;line-height:1!important;color:#f8fbff!important
+}
+#rmArchiveManagerV2 .rm-arc-list{
+  display:grid!important;gap:9px!important;width:100%!important;max-height:520px!important;
+  overflow:auto!important;padding:0!important
+}
+#rmArchiveManagerV2 .rm-arc-empty{
+  display:flex!important;align-items:center!important;justify-content:center!important;min-height:58px!important;
+  padding:14px!important;border:1px dashed #34465e!important;border-radius:10px!important;
+  background:#0c1522!important;color:#8fa6c1!important;font-size:12px!important;text-align:center!important
+}
+#rmArchiveManagerV2 .rm-arc-job{
+  display:grid!important;grid-template-columns:minmax(240px,1.8fr) minmax(190px,1fr) minmax(150px,.7fr)!important;
+  gap:14px!important;align-items:center!important;width:100%!important;padding:12px 13px!important;
+  border:1px solid #29394f!important;border-radius:11px!important;background:#101a29!important;min-width:0!important
+}
+#rmArchiveManagerV2 .rm-arc-interrupted{border-color:#6f4d1f!important;background:#1b160f!important}
+#rmArchiveManagerV2 .rm-arc-file{
+  min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;
+  font-size:13px!important;font-weight:800!important;color:#f0f5fb!important
+}
+#rmArchiveManagerV2 .rm-arc-meta{
+  margin-top:4px!important;font-size:10px!important;line-height:1.35!important;color:#7f9bbd!important;
+  overflow-wrap:anywhere!important
+}
+#rmArchiveManagerV2 .rm-arc-status{
+  font-size:11px!important;line-height:1.3!important;font-weight:800!important;color:#dce8f6!important
+}
+#rmArchiveManagerV2 .rm-arc-progress{
+  width:100%!important;height:7px!important;margin-top:7px!important;border-radius:999px!important;
+  background:#1b2a3e!important;overflow:hidden!important
+}
+#rmArchiveManagerV2 .rm-arc-progress>i{
+  display:block!important;height:100%!important;min-width:0!important;border-radius:999px!important;background:#3f8cff!important
+}
+#rmArchiveManagerV2 .rm-arc-actions{
+  grid-column:1/-1!important;display:flex!important;align-items:center!important;justify-content:flex-end!important;
+  gap:7px!important;flex-wrap:wrap!important;margin-top:0!important;padding-top:9px!important;
+  border-top:1px solid #223147!important
+}
+#rmArchiveManagerV2 .rm-arc-actions .primary{
+  border-color:#275aa8!important;background:#173c77!important;color:#eaf3ff!important
+}
+#rmArchiveManagerV2 .rm-arc-actions .danger{
+  border-color:#78303a!important;background:#401821!important;color:#ffdce1!important
+}
+#rmArchiveManagerV2 .rm-arc-actions input{
+  min-height:34px!important;min-width:220px!important;max-width:320px!important;padding:7px 10px!important;
+  border:1px solid #3b4b63!important;border-radius:9px!important;background:#0b1421!important;
+  color:#eef4fb!important;outline:none!important
+}
+@media(max-width:980px){
+  #rmArchiveManagerV2 .rm-arc-job{grid-template-columns:1fr 1fr!important}
+}
+@media(max-width:760px){
+  #rmArchiveManagerV2{padding:13px!important}
+  #rmArchiveManagerV2 .rm-arc-stats{grid-template-columns:1fr!important}
+  #rmArchiveManagerV2 .rm-arc-job{grid-template-columns:1fr!important}
+  #rmArchiveManagerV2 .rm-arc-actions{justify-content:flex-start!important}
+  #rmArchiveManagerV2 .rm-arc-actions input{min-width:100%!important;max-width:100%!important}
+}
+''', encoding='utf-8')
+
+    page = tpl.read_text(encoding='utf-8')
+    link = '<link rel="stylesheet" href="/static/archive-manager-v3.css?v=ha4.7.4.8" data-rm-archive-css="v3">'
+    if 'data-rm-archive-css="v3"' not in page:
+        anchor = '<!-- RM_ARCHIVE_MANAGER_V2 -->'
+        if anchor in page:
+            page = page.replace(anchor, link + '\n' + anchor, 1)
+        else:
+            end = page.rfind('{% endblock %}')
+            if end >= 0:
+                page = page[:end] + link + '\n' + page[end:]
+            else:
+                page += '\n' + link
+        tpl.write_text(page, encoding='utf-8')
+
+print('Archive external CSS OK: /static/archive-manager-v3.css vinculado ao painel')
