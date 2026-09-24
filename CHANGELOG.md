@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.6 — 2026-09-24
+
+- corrige o card legado **Compactados** que continuava renderizando no rodapé da tela `API / Extensão`;
+- o seletor antigo procurava o título apenas em headings/strong e não encontrava o card legado em algumas versões do template;
+- o HA4.7.4.6 identifica o card legado pelo texto exclusivo do fluxo de compactados e oculta somente o menor container correspondente, sem esconder a fila normal;
+- a limpeza é repetida após o carregamento para cobrir o render assíncrono do painel legado;
+- mantém a nova **Fila de compactados** no bloco superior, com os controles adicionados no HA4.7.4.5.
+
 ## 1.4.0-rc11-ha4.7.4.5 — 2026-09-24
 
 - adiciona controles completos à **Fila de compactados**: `Cancelar`, `Continuar`, `Tentar novamente`, `Reiniciar` e `Excluir`;
