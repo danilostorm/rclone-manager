@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.2 — 2026-09-23
+
+- corrige uma falha de compatibilidade do HA4.7.4.1 que podia classificar `@require_csrf` como se fosse autenticação do painel;
+- CSRF, rate-limit, cache e CORS agora são explicitamente rejeitados como guards de autenticação/autorização;
+- remove automaticamente qualquer bloco opcional `/api/v1/archive/*` criado pelo HA4.7.4.1 com proteção apenas por CSRF;
+- só recria as rotas web opcionais quando encontra um guard de login/autorização inequívoco ou um `before_request` global autenticado;
+- quando não há autenticação web comprovada, mantém somente a API segura da extensão via `@extension_api_required`; o Archive Import continua funcionando normalmente pela extensão;
+- mantém as ferramentas `7z`, `bsdtar`, `unar` e `lsar` e todo o fluxo de ZIP/RAR/7z/TAR, senha, streaming e controle de espaço.
+
 ## 1.4.0-rc11-ha4.7.4.1 — 2026-09-23
 
 - corrige o deploy do Archive Import em instalações HA antigas onde o autenticador web não se chama `login_required`;
