@@ -110,6 +110,11 @@ with tempfile.NamedTemporaryFile(suffix='.pyc') as f:
 if tpl.exists():
     text = tpl.read_text(encoding='utf-8')
     text = text.replace('Drive Link API v11', 'Drive Link API v14')
+    # Jinja treats "{#" as the start of a template comment. CSS such as
+    # "@media(...){#rmArchiveManagerV2" therefore breaks /api-manager with
+    # TemplateSyntaxError before any JavaScript can run. Keep whitespace
+    # between "{" and the CSS id selector, and repair HA4.7.4.3 templates.
+    text = text.replace('{#rmArchiveManagerV2', '{ #rmArchiveManagerV2')
     if 'RM_ARCHIVE_MANAGER_V2' not in text:
         overlay = r'''
 <!-- RM_ARCHIVE_MANAGER_V2 -->
@@ -132,8 +137,8 @@ if tpl.exists():
   #rmArchiveManagerV2 .rm-arc-progress>i{display:block;height:100%;background:#3b82f6;width:0}
   #rmArchiveManagerV2 .rm-arc-empty{padding:14px;text-align:center;color:#94a3b8;border:1px dashed #334155;border-radius:9px}
   #rmArchiveManagerV2 button{padding:7px 10px;border-radius:8px;border:1px solid #475569;background:#172033;color:#e5e7eb;cursor:pointer}
-  @media(max-width:900px){#rmArchiveManagerV2 .rm-arc-job{grid-template-columns:1fr}#rmArchiveManagerV2 .rm-arc-stats{grid-template-columns:1fr 1fr 1fr}}
-  @media(max-width:520px){#rmArchiveManagerV2 .rm-arc-stats{grid-template-columns:1fr}}
+  @media(max-width:900px){ #rmArchiveManagerV2 .rm-arc-job{grid-template-columns:1fr}#rmArchiveManagerV2 .rm-arc-stats{grid-template-columns:1fr 1fr 1fr}}
+  @media(max-width:520px){ #rmArchiveManagerV2 .rm-arc-stats{grid-template-columns:1fr}}
 </style>
 <script>
 (() => {
