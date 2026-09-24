@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.4 — 2026-09-24
+
+- corrige o **Internal Server Error** em `/api-manager` introduzido no HA4.7.4.3;
+- a causa era uma sequência CSS `{#rmArchiveManagerV2` dentro do template Jinja, interpretada como início de comentário `{# ... #}`;
+- o patch agora repara automaticamente templates HA4.7.4.3 já aplicados, inserindo espaço seguro antes do seletor CSS;
+- mantém a fila separada de compactados, endpoint de status e layout responsivo do HA4.7.4.3.
+
 ## 1.4.0-rc11-ha4.7.4.3 — 2026-09-24
 
 - corrige o HTTP 404 da extensão ao acompanhar tarefas de compactados: jobs ZIP/RAR/7z/TAR agora possuem endpoint de status dedicado protegido pela API Key;
