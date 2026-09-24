@@ -220,4 +220,637 @@ if tpl.exists():
 
 print('Archive UI v2 OK: status API estável + fila compactados responsiva')
 
-# archive-controls-planned
+
+
+# RM_ARCHIVE_CONTROLS_PATCH_V1
+# Lifecycle controls for persistent archive jobs. This is appended by the
+# deploy overlay so old HA live-source installations gain the same behavior.
+archive_py = appdir / 'archive_import.py'
+if archive_py.exists():
+    arc = archive_py.read_text(encoding='utf-8')
+    if 'RM_ARCHIVE_CONTROLS_V1' not in arc:
+        arc += r'''
+
+# RM_ARCHIVE_CONTROLS_V1
+import shutil as _archive_shutil
+import threading as _archive_threading
+
+
+class ArchiveJobCancelled(Exception):
+    pass
+
+
+_ARCHIVE_CANCEL_REQUESTS = set()
+_ARCHIVE_RESUME_REQUESTED = set()
+_ARCHIVE_CANCEL_DEFER = _archive_threading.local()
+
+_ARCHIVE_ORIG_LIST_JOBS = list_jobs
+_ARCHIVE_ORIG_UPDATE_JOB = _update_job
+_ARCHIVE_ORIG_RUN_JOB = _run_job
+_ARCHIVE_ORIG_DOWNLOAD_ONE = _download_one
+_ARCHIVE_ORIG_RCAT = _rcat
+_ARCHIVE_ORIG_EXTRACT_FULL = _extract_full_and_upload
+_ARCHIVE_ORIG_UPLOAD_ORIGINAL = _upload_original_archives
+
+
+def _archive_worker_alive(job_id):
+    job_id = str(job_id or '')
+    try:
+        with _JOB_LOCK:
+            th = _JOB_THREADS.get(job_id)
+            return bool(th and th.is_alive())
+    except Exception:
+        return False
+
+
+def _archive_stage_path(job_id):
+    return STAGING_ROOT / ('job-' + str(job_id or ''))
+
+
+def _archive_stage_info(job_id):
+    stage = _archive_stage_path(job_id)
+    total = 0
+    files = 0
+    if stage.exists():
+        try:
+            for child in stage.rglob('*'):
+                if child.is_file():
+                    files += 1
+                    try:
+                        total += int(child.stat().st_size)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+    return {
+        'stage_exists': stage.exists(),
+        'stage_path': str(stage),
+        'stage_files': files,
+        'stage_bytes': total,
+    }
+
+
+def _archive_cleanup_stage(job_id):
+    stage = _archive_stage_path(job_id)
+    if stage.exists():
+        _archive_shutil.rmtree(stage, ignore_errors=True)
+
+
+def _archive_check_cancel(job_id):
+    if str(job_id or '') in _ARCHIVE_CANCEL_REQUESTS:
+        raise ArchiveJobCancelled('Cancelada pelo usuário')
+
+
+def _update_job(job_id, **fields):
+    jid = str(job_id or '')
+    worker_name = 'archive-import-' + jid
+    if (
+        jid in _ARCHIVE_CANCEL_REQUESTS
+        and _archive_threading.current_thread().name == worker_name
+        and not getattr(_ARCHIVE_CANCEL_DEFER, 'value', False)
+    ):
+        raise ArchiveJobCancelled('Cancelada pelo usuário')
+    return _ARCHIVE_ORIG_UPDATE_JOB(job_id, **fields)
+
+
+def _run_job(job_id):
+    jid = str(job_id or '')
+    try:
+        return _ARCHIVE_ORIG_RUN_JOB(job_id)
+    except ArchiveJobCancelled:
+        _ARCHIVE_CANCEL_REQUESTS.discard(jid)
+        _ARCHIVE_RESUME_REQUESTED.discard(jid)
+        _ARCHIVE_ORIG_UPDATE_JOB(
+            jid,
+            status='canceled',
+            phase='canceled',
+            message='Cancelada pelo usuário',
+            error='',
+            finished_at=_now(),
+        )
+        return None
+
+
+def _archive_download_candidates(dest):
+    try:
+        return sorted(
+            [
+                p for p in dest.iterdir()
+                if p.is_file()
+                and p.stat().st_size > 0
+                and not p.name.lower().endswith(('.part', '.tmp', '.download', '.crdownload'))
+            ],
+            key=lambda p: p.name.lower(),
+        )
+    except Exception:
+        return []
+
+
+def _download_one(job_id, row, dest, index, total):
+    jid = str(job_id or '')
+    _archive_check_cancel(jid)
+
+    if jid in _ARCHIVE_RESUME_REQUESTED:
+        job = get_job(jid) or {}
+        expected_total = int(job.get('archive_bytes') or 0)
+        candidates = _archive_download_candidates(dest)
+        actual_total = sum(int(p.stat().st_size) for p in candidates) if candidates else 0
+
+        # Reuse only a previously completed download set. archive_bytes is
+        # filled after all link downloads complete, so partial files are never
+        # mistaken for resumable archives.
+        if expected_total > 0 and actual_total == expected_total and len(candidates) >= int(total or 1):
+            chosen = None
+            label = str((row or {}).get('label') or (row or {}).get('name') or '').strip()
+            if label:
+                for p in candidates:
+                    if p.name == label or p.name in label or label in p.name:
+                        chosen = p
+                        break
+            if chosen is None:
+                pos = max(0, min(len(candidates) - 1, int(index or 1) - 1))
+                chosen = candidates[pos]
+            _ARCHIVE_ORIG_UPDATE_JOB(
+                jid,
+                phase='downloading',
+                status='running',
+                current_item=chosen.name,
+                downloaded_bytes=actual_total,
+                message='Reutilizando download completo já presente no staging',
+            )
+            _archive_check_cancel(jid)
+            return chosen
+
+    result = _ARCHIVE_ORIG_DOWNLOAD_ONE(job_id, row, dest, index, total)
+    _archive_check_cancel(jid)
+    return result
+
+
+def _rcat(job_id, *args, **kwargs):
+    _archive_check_cancel(job_id)
+    _ARCHIVE_CANCEL_DEFER.value = True
+    try:
+        result = _ARCHIVE_ORIG_RCAT(job_id, *args, **kwargs)
+    finally:
+        _ARCHIVE_CANCEL_DEFER.value = False
+    _archive_check_cancel(job_id)
+    return result
+
+
+def _extract_full_and_upload(job_id, *args, **kwargs):
+    _archive_check_cancel(job_id)
+    _ARCHIVE_CANCEL_DEFER.value = True
+    try:
+        result = _ARCHIVE_ORIG_EXTRACT_FULL(job_id, *args, **kwargs)
+    finally:
+        _ARCHIVE_CANCEL_DEFER.value = False
+    _archive_check_cancel(job_id)
+    return result
+
+
+def _upload_original_archives(job_id, *args, **kwargs):
+    _archive_check_cancel(job_id)
+    _ARCHIVE_CANCEL_DEFER.value = True
+    try:
+        result = _ARCHIVE_ORIG_UPLOAD_ORIGINAL(job_id, *args, **kwargs)
+    finally:
+        _ARCHIVE_CANCEL_DEFER.value = False
+    _archive_check_cancel(job_id)
+    return result
+
+
+def _archive_mark_orphans():
+    try:
+        rows = _ARCHIVE_ORIG_LIST_JOBS(500) or []
+    except Exception:
+        return
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        jid = str(row.get('id') or row.get('job_id') or '')
+        status = str(row.get('status') or '').lower()
+        if jid and status in {'queued', 'running'} and not _archive_worker_alive(jid):
+            _ARCHIVE_ORIG_UPDATE_JOB(
+                jid,
+                status='interrupted',
+                phase='interrupted',
+                message='Interrompida por reinício/atualização; use Continuar ou Reiniciar',
+                finished_at='',
+            )
+
+
+def list_jobs(limit=50):
+    rows = _ARCHIVE_ORIG_LIST_JOBS(limit) or []
+    out = []
+    for row in rows:
+        if not isinstance(row, dict):
+            out.append(row)
+            continue
+        if str(row.get('status') or '').lower() == 'deleted':
+            continue
+        item = dict(row)
+        jid = str(item.get('id') or item.get('job_id') or '')
+        item['worker_alive'] = _archive_worker_alive(jid)
+        item.update(_archive_stage_info(jid))
+        out.append(item)
+    return out
+
+
+def archive_job_control(job_id, action, password='', cleanup=True):
+    jid = str(job_id or '').strip()
+    action = str(action or '').strip().lower()
+    job = get_job(jid)
+    if not job or str(job.get('status') or '').lower() == 'deleted':
+        raise ValueError('Tarefa de compactado não encontrada')
+
+    alive = _archive_worker_alive(jid)
+    status = str(job.get('status') or '').lower()
+
+    if action == 'cancel':
+        if alive:
+            _ARCHIVE_CANCEL_REQUESTS.add(jid)
+            _ARCHIVE_ORIG_UPDATE_JOB(
+                jid,
+                phase='canceling',
+                message='Cancelamento solicitado; aguardando ponto seguro',
+            )
+        else:
+            _ARCHIVE_ORIG_UPDATE_JOB(
+                jid,
+                status='canceled',
+                phase='canceled',
+                message='Cancelada pelo usuário',
+                error='',
+                finished_at=_now(),
+            )
+        return {**(get_job(jid) or {}), **_archive_stage_info(jid), 'worker_alive': alive}
+
+    if action in {'resume', 'retry'}:
+        if alive:
+            raise ValueError('A tarefa ainda possui worker ativo')
+        _ARCHIVE_CANCEL_REQUESTS.discard(jid)
+        _ARCHIVE_RESUME_REQUESTED.add(jid)
+        if password:
+            _JOB_PASSWORDS[jid] = str(password)
+        if status == 'waiting_password' and not password:
+            raise ValueError('Informe a senha do arquivo compactado')
+        _ARCHIVE_ORIG_UPDATE_JOB(
+            jid,
+            status='queued',
+            phase='queued',
+            message='Retomando; downloads completos no staging serão reutilizados',
+            error='',
+            finished_at='',
+        )
+        _start_job(jid)
+        return {**(get_job(jid) or {}), **_archive_stage_info(jid), 'worker_alive': True}
+
+    if action == 'restart':
+        if alive:
+            raise ValueError('Cancele a tarefa ativa antes de reiniciar')
+        _ARCHIVE_CANCEL_REQUESTS.discard(jid)
+        _ARCHIVE_RESUME_REQUESTED.discard(jid)
+        _archive_cleanup_stage(jid)
+        if password:
+            _JOB_PASSWORDS[jid] = str(password)
+        _ARCHIVE_ORIG_UPDATE_JOB(
+            jid,
+            status='queued',
+            phase='queued',
+            message='Reiniciando do zero',
+            error='',
+            downloaded_bytes=0,
+            archive_bytes=0,
+            estimated_unpacked_bytes=0,
+            unpacked_bytes=0,
+            uploaded_bytes=0,
+            total_files=0,
+            completed_files=0,
+            progress=0,
+            current_item='',
+            finished_at='',
+        )
+        _start_job(jid)
+        return {**(get_job(jid) or {}), **_archive_stage_info(jid), 'worker_alive': True}
+
+    if action == 'delete':
+        if alive:
+            raise ValueError('Cancele a tarefa ativa antes de excluir')
+        if cleanup:
+            _archive_cleanup_stage(jid)
+        _ARCHIVE_CANCEL_REQUESTS.discard(jid)
+        _ARCHIVE_RESUME_REQUESTED.discard(jid)
+        _JOB_PASSWORDS.pop(jid, None)
+        _ARCHIVE_ORIG_UPDATE_JOB(
+            jid,
+            status='deleted',
+            phase='deleted',
+            message='Removida do histórico',
+            error='',
+            finished_at=_now(),
+        )
+        return {'id': jid, 'job_id': jid, 'status': 'deleted', **_archive_stage_info(jid)}
+
+    raise ValueError('Ação inválida')
+
+
+def archive_jobs_maintenance(action, cleanup=True):
+    action = str(action or '').strip().lower()
+    rows = list_jobs(500) or []
+    changed = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        jid = str(row.get('id') or row.get('job_id') or '')
+        status = str(row.get('status') or '').lower()
+        if not jid or _archive_worker_alive(jid):
+            continue
+        should_delete = (
+            action == 'clear_finished' and status in {'done', 'completed', 'complete', 'success', 'canceled', 'cancelled'}
+        ) or (
+            action == 'clear_orphans' and status == 'interrupted'
+        )
+        if should_delete:
+            archive_job_control(jid, 'delete', cleanup=cleanup)
+            changed.append(jid)
+    if action not in {'clear_finished', 'clear_orphans'}:
+        raise ValueError('Ação de manutenção inválida')
+    return {'ok': True, 'changed': changed, 'count': len(changed)}
+
+
+_archive_mark_orphans()
+'''
+        archive_py.write_text(arc, encoding='utf-8')
+        with tempfile.NamedTemporaryFile(suffix='.pyc') as f:
+            py_compile.compile(str(archive_py), doraise=True, cfile=f.name)
+
+# Action endpoints for extension API and authenticated panel.
+app_text = app_py.read_text(encoding='utf-8')
+if 'RM_ARCHIVE_CONTROL_ROUTES_V1' not in app_text:
+    marker = '# RM_ARCHIVE_STATUS_API_V2'
+    pos = app_text.find(marker)
+    if pos < 0:
+        marker = '# RM_ARCHIVE_IMPORT_ROUTES_V1'
+        pos = app_text.find(marker)
+    if pos < 0:
+        raise SystemExit('Archive controls: marcador de rotas não encontrado')
+
+    routes = r'''
+# RM_ARCHIVE_CONTROL_ROUTES_V1
+@app.route('/api/v1/extension/archive/jobs/<job_id>/action', methods=['POST', 'OPTIONS'])
+@extension_api_required
+def extension_archive_job_action_v1(job_id):
+    from archive_import import archive_job_control
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = archive_job_control(
+            job_id,
+            payload.get('action') or '',
+            payload.get('password') or '',
+            bool(payload.get('cleanup', True)),
+        )
+        return jsonify({'ok': True, 'job': result})
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 400
+
+
+@app.route('/api/v1/extension/archive/maintenance', methods=['POST', 'OPTIONS'])
+@extension_api_required
+def extension_archive_maintenance_v1():
+    from archive_import import archive_jobs_maintenance
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(archive_jobs_maintenance(
+            payload.get('action') or '',
+            bool(payload.get('cleanup', True)),
+        ))
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 400
+
+
+'''
+    app_text = app_text[:pos] + routes + app_text[pos:]
+
+if 'RM_ARCHIVE_WEB_CONTROL_ROUTES_V1' not in app_text and 'RM_ARCHIVE_WEB_ROUTES_V1' in app_text:
+    guard = ''
+    m = re.search(
+        r"@app\.route\('/api/v1/archive/jobs'.*?\)\n(?P<guard>(?:@[^\n]+\n)*)def web_archive_jobs\(",
+        app_text,
+    )
+    if not m:
+        m = re.search(
+            r'@app\.route\("/api/v1/archive/jobs".*?\)\n(?P<guard>(?:@[^\n]+\n)*)def web_archive_jobs\(',
+            app_text,
+        )
+    if m:
+        guard = m.group('guard') or ''
+
+    marker = '# RM_ARCHIVE_IMPORT_ROUTES_V1'
+    pos = app_text.find(marker)
+    web_routes = r'''
+# RM_ARCHIVE_WEB_CONTROL_ROUTES_V1
+@app.route('/api/v1/archive/jobs/<job_id>/action', methods=['POST'])
+__GUARD__def web_archive_job_action_v1(job_id):
+    from archive_import import archive_job_control
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = archive_job_control(
+            job_id,
+            payload.get('action') or '',
+            payload.get('password') or '',
+            bool(payload.get('cleanup', True)),
+        )
+        return jsonify({'ok': True, 'job': result})
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 400
+
+
+@app.route('/api/v1/archive/maintenance', methods=['POST'])
+__GUARD__def web_archive_maintenance_v1():
+    from archive_import import archive_jobs_maintenance
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(archive_jobs_maintenance(
+            payload.get('action') or '',
+            bool(payload.get('cleanup', True)),
+        ))
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 400
+
+
+'''.replace('__GUARD__', guard)
+    app_text = app_text[:pos] + web_routes + app_text[pos:]
+
+app_py.write_text(app_text, encoding='utf-8')
+with tempfile.NamedTemporaryFile(suffix='.pyc') as f:
+    py_compile.compile(str(app_py), doraise=True, cfile=f.name)
+
+# Responsive action buttons on the existing archive cards.
+if tpl.exists():
+    page = tpl.read_text(encoding='utf-8')
+    if 'RM_ARCHIVE_CONTROLS_UI_V1' not in page and 'RM_ARCHIVE_MANAGER_V2' in page and 'RM_ARCHIVE_WEB_CONTROL_ROUTES_V1' in app_text:
+        controls_ui = r'''
+<!-- RM_ARCHIVE_CONTROLS_UI_V1 -->
+<style id="rm-archive-controls-v1-style">
+  #rmArchiveManagerV2 .rm-arc-actions{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin-top:7px}
+  #rmArchiveManagerV2 .rm-arc-actions button{font-size:11px;padding:6px 9px}
+  #rmArchiveManagerV2 .rm-arc-actions .danger{border-color:#7f1d1d;background:#3f1218;color:#fecaca}
+  #rmArchiveManagerV2 .rm-arc-actions .primary{border-color:#1d4ed8;background:#173a77;color:#dbeafe}
+  #rmArchiveManagerV2 .rm-arc-actions input{min-width:160px;max-width:230px;padding:7px 9px;border:1px solid #475569;border-radius:8px;background:#0b1220;color:#e5e7eb}
+  #rmArchiveManagerV2 .rm-arc-toolbar{display:flex;gap:6px;flex-wrap:wrap}
+  #rmArchiveManagerV2 .rm-arc-interrupted{border-color:#92400e;background:#1d160d}
+  @media(max-width:900px){ #rmArchiveManagerV2 .rm-arc-actions{justify-content:flex-start} }
+</style>
+<script>
+(() => {
+  const ROOT = '#rmArchiveManagerV2';
+  const terminal = s => ['done','completed','complete','success','canceled','cancelled','error','failed','deleted'].includes(String(s||'').toLowerCase());
+  let jobs = [];
+
+  async function callJson(url, body) {
+    const r = await fetch(url, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: body ? {'Content-Type':'application/json'} : {},
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + r.status));
+    return data;
+  }
+
+  async function action(id, name, extra={}) {
+    if (name === 'delete' && !confirm('Excluir esta tarefa do histórico e apagar os temporários?')) return;
+    if (name === 'restart' && !confirm('Reiniciar do zero? O staging será apagado e o download recomeçará.')) return;
+    try {
+      await callJson('/api/v1/archive/jobs/' + encodeURIComponent(id) + '/action', {action:name, cleanup:true, ...extra});
+      await load();
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  async function maintenance(name) {
+    const label = name === 'clear_finished' ? 'finalizadas/canceladas' : 'interrompidas';
+    if (!confirm('Remover tarefas ' + label + ' e apagar seus temporários?')) return;
+    try {
+      await callJson('/api/v1/archive/maintenance', {action:name, cleanup:true});
+      await load();
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  function cardId(card) {
+    const txt = Array.from(card.querySelectorAll('.rm-arc-meta')).map(x => x.textContent || '').join(' ');
+    const m = txt.match(/#([A-Za-z0-9_-]{6,64})/);
+    return m ? m[1] : '';
+  }
+
+  function actionHtml(job) {
+    const status = String(job.status || job.state || '').toLowerCase();
+    if (status === 'waiting_password') {
+      return '<input class="rm-arc-pwd" type="password" autocomplete="new-password" placeholder="Senha do compactado"><button class="primary" data-a="resume">Continuar</button><button class="danger" data-a="delete">Excluir</button>';
+    }
+    if (status === 'interrupted') {
+      return '<button class="primary" data-a="resume">▶ Continuar</button><button data-a="restart">↻ Reiniciar</button><button class="danger" data-a="delete">Excluir</button>';
+    }
+    if (status === 'error' || status === 'failed') {
+      return '<button class="primary" data-a="retry">Tentar novamente</button><button data-a="restart">↻ Reiniciar</button><button class="danger" data-a="delete">Excluir</button>';
+    }
+    if (status === 'running' || status === 'queued') {
+      return '<button class="danger" data-a="cancel">Cancelar</button>';
+    }
+    if (terminal(status)) {
+      return '<button class="danger" data-a="delete">Excluir</button>';
+    }
+    return '<button class="primary" data-a="resume">Continuar</button><button class="danger" data-a="delete">Excluir</button>';
+  }
+
+  function decorate() {
+    const root = document.querySelector(ROOT);
+    if (!root) return;
+    const byId = new Map(jobs.map(j => [String(j.id || j.job_id || ''), j]));
+
+    for (const card of root.querySelectorAll('.rm-arc-job')) {
+      const id = cardId(card);
+      const job = byId.get(id);
+      if (!job) continue;
+      const status = String(job.status || '').toLowerCase();
+      if (status === 'interrupted') card.classList.add('rm-arc-interrupted');
+
+      const file = card.querySelector('.rm-arc-file');
+      const better = job.current_item || job.filename || job.archive_name || job.name;
+      if (file && better && better !== 'Compactado') {
+        file.textContent = better;
+        file.title = better;
+      }
+
+      let actions = card.querySelector('.rm-arc-actions');
+      if (!actions) {
+        actions = document.createElement('div');
+        actions.className = 'rm-arc-actions';
+        card.appendChild(actions);
+      }
+      const signature = status + '|' + String(job.worker_alive) + '|' + String(job.stage_bytes || 0);
+      if (actions.dataset.signature !== signature) {
+        actions.dataset.signature = signature;
+        actions.innerHTML = actionHtml(job);
+        actions.querySelectorAll('button[data-a]').forEach(btn => {
+          btn.onclick = () => {
+            const pwd = actions.querySelector('.rm-arc-pwd')?.value || '';
+            action(id, btn.dataset.a, {password:pwd});
+          };
+        });
+      }
+    }
+
+    const head = root.querySelector('.rm-arc-head');
+    if (head && !root.querySelector('.rm-arc-toolbar')) {
+      const toolbar = document.createElement('div');
+      toolbar.className = 'rm-arc-toolbar';
+      toolbar.innerHTML = '<button type="button" data-m="clear_finished">Limpar finalizados</button><button type="button" data-m="clear_orphans">Limpar interrompidos</button>';
+      toolbar.querySelectorAll('button[data-m]').forEach(btn => {
+        btn.onclick = () => maintenance(btn.dataset.m);
+      });
+      head.appendChild(toolbar);
+    }
+
+    let running = 0, waiting = 0, pwd = 0;
+    for (const j of jobs) {
+      const st = String(j.status || j.state || '').toLowerCase();
+      if (st === 'waiting_password') pwd++;
+      else if (st === 'interrupted' || st === 'queued' || st === 'pending' || st === 'waiting') waiting++;
+      else if (!terminal(st)) running++;
+    }
+    const a = root.querySelector('#rmArcRunV2');
+    const q = root.querySelector('#rmArcQueueV2');
+    const p = root.querySelector('#rmArcPwdV2');
+    if (a) a.textContent = running;
+    if (q) q.textContent = waiting;
+    if (p) p.textContent = pwd;
+  }
+
+  async function load() {
+    try {
+      const data = await callJson('/api/v1/archive/jobs?limit=100');
+      jobs = Array.isArray(data.jobs) ? data.jobs : [];
+      decorate();
+    } catch (_) {}
+  }
+
+  new MutationObserver(() => decorate()).observe(document.documentElement, {subtree:true, childList:true});
+  load();
+  setInterval(load, 2500);
+})();
+</script>
+'''
+        end = page.rfind('{% endblock %}')
+        if end >= 0:
+            page = page[:end] + controls_ui + '\n' + page[end:]
+        else:
+            page += '\n' + controls_ui
+        tpl.write_text(page, encoding='utf-8')
+
+print('Archive controls OK: cancelar/continuar/reiniciar/excluir + limpeza + retomada segura')
