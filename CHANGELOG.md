@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.5 — 2026-09-24
+
+- adiciona controles completos à **Fila de compactados**: `Cancelar`, `Continuar`, `Tentar novamente`, `Reiniciar` e `Excluir`;
+- tarefas `running/queued` persistidas sem worker depois de restart/update passam automaticamente para **Interrompida**, em vez de ficarem falsamente como em andamento;
+- `Continuar` reaproveita downloads completos já existentes em `/cache/archive-import/job-<id>` somente quando o tamanho total confere com `archive_bytes`; arquivos parciais não são reutilizados;
+- `Reiniciar` limpa somente o staging da tarefa e reinicia o fluxo do zero;
+- `Excluir` remove a tarefa da interface/histórico ativo e limpa o staging, sem edição manual do SQLite;
+- adiciona ações globais **Limpar finalizados** e **Limpar interrompidos**;
+- tarefas aguardando senha passam a oferecer senha + `Continuar` diretamente no card;
+- cancelamento é cooperativo: interrompe download/progresso em ponto seguro e evita matar uploads/rclone de forma assíncrona;
+- endpoints equivalentes também ficam disponíveis para a extensão sob `@extension_api_required`.
+
 ## 1.4.0-rc11-ha4.7.4.4 — 2026-09-24
 
 - corrige o **Internal Server Error** em `/api-manager` introduzido no HA4.7.4.3;
