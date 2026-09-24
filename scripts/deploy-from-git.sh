@@ -92,6 +92,9 @@ fi
 [ -f "$TMP/source/requirements.txt" ] || { echo 'Fonte inválida: requirements.txt ausente.' >&2; exit 1; }
 
 python3 "$ROOT/scripts/patch-git-source.py" "$TMP/source" "$VERSION"
+if [ -f "$ROOT/scripts/patch-archive-import.py" ]; then
+  python3 "$ROOT/scripts/patch-archive-import.py" "$TMP/source"
+fi
 printf '%s\n' "$VERSION" > "$TMP/source/VERSION"
 
 # O bootstrap MultiServer usa Paramiko nas versões HA4 atuais.
