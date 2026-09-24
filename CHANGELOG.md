@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4 — 2026-09-23
+
+- adiciona **Archive Import** para links diretos ZIP, RAR, 7z, TAR/TGZ e volumes multipartes como `.part1.rar`, `.7z.001`, `.zip.001` e `.001`;
+- baixa o compactado no servidor, valida tipo/caminhos, inspeciona conteúdo e tamanho descompactado antes de iniciar a extração;
+- adiciona limites globais de tamanho descompactado e espaço livre mínimo para impedir que staging/extracao esgote o disco;
+- modo econômico faz extração e upload **arquivo por arquivo em streaming** para Google Drive; se não for possível, usa staging completo somente após validar espaço livre;
+- preserva uma pasta raiz já existente e, para arquivos soltos, cria pasta pelo nome do compactado no modo automático;
+- suporta arquivos protegidos por senha: a tarefa entra em `waiting_password` e pode ser retomada sem baixar novamente o arquivo;
+- opção por tarefa para enviar também o compactado original e configuração global para limpeza automática dos temporários;
+- novas fases no Gerenciador API/Extensão: download, verificação, extração, upload, limpeza, aguardando senha, concluído/erro;
+- histórico persistente de links é atualizado somente após conclusão bem-sucedida, mantendo a proteção **JÁ BAIXADO / deseja baixar novamente?**;
+- adiciona endpoints `/api/v1/extension/archive/*` e `/api/v1/archive/*` e atualiza a API da extensão para `drive-link-v14`;
+- imagem Docker passa a incluir `p7zip-full` e `libarchive-tools` para RAR/7z e inspeção/extração ampliada;
+- extensão v1.10.0 adiciona controles de extração, streaming, envio do original, pasta raiz e senha preservando seleção de servidor/destino da v1.9.0.
+
 ## 1.4.0-rc11-ha4.7.3.12 — 2026-08-31
 
 - aplica o layout fluido em todas as telas do painel, aproveitando melhor a largura disponível no desktop;
