@@ -115,6 +115,7 @@ if tpl.exists():
     # TemplateSyntaxError before any JavaScript can run. Keep whitespace
     # between "{" and the CSS id selector, and repair HA4.7.4.3 templates.
     text = text.replace('{#rmArchiveManagerV2', '{ #rmArchiveManagerV2')
+    text = text.replace("if(['queued','pending','waiting'].includes(s)) queued++;", "if(['queued','pending','waiting','interrupted'].includes(s)) queued++;")
     if 'RM_ARCHIVE_MANAGER_V2' not in text:
         overlay = r'''
 <!-- RM_ARCHIVE_MANAGER_V2 -->
@@ -182,7 +183,7 @@ if tpl.exists():
       let running=0, queued=0, pwd=0;
       for(const j of jobs){
         const s=statusOf(j).toLowerCase();
-        if(['queued','pending','waiting'].includes(s)) queued++;
+        if(['queued','pending','waiting','interrupted'].includes(s)) queued++;
         else if(['waiting_password','password','needs_password'].includes(s)) pwd++;
         else if(!terminal(s)) running++;
       }
