@@ -37,6 +37,9 @@ if [ -f "$DEST/app/app.py" ]; then
   if [ -f "$ROOT/scripts/patch-archive-rar.py" ]; then
     python3 "$ROOT/scripts/patch-archive-rar.py" "$DEST"
   fi
+  if [ -f "$ROOT/scripts/patch-archive-ui-v2.py" ]; then
+    python3 "$ROOT/scripts/patch-archive-ui-v2.py" "$DEST"
+  fi
 fi
 
 exec "$ROOT/scripts/deploy-from-git.sh" "$@"
