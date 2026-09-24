@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.1 — 2026-09-23
+
+- corrige o deploy do Archive Import em instalações HA antigas onde o autenticador web não se chama `login_required`;
+- o overlay principal não aborta mais depois de aplicar a API segura da extensão e o Dockerfile;
+- adiciona detecção do decorator de autenticação já usado pelo painel e reutiliza esse mesmo guard nas rotas web de compactados;
+- quando não é possível provar qual é o guard web, as rotas/UI opcionais do painel são omitidas por segurança, mas a API `@extension_api_required` e o importador da extensão continuam ativos;
+- permite que o deploy prossiga até o rebuild do container, instalando `7z`, `bsdtar`, `unar` e `lsar`;
+- corrige especificamente o caso em que o Git mostrava a nova versão, mas o container permanecia em `1.4.0-rc11-ha4.7.3.12`.
+
 ## 1.4.0-rc11-ha4.7.4 — 2026-09-23
 
 - adiciona **Archive Import** para links diretos ZIP, RAR, 7z, TAR/TGZ e volumes multipartes como `.part1.rar`, `.7z.001`, `.zip.001` e `.001`;
