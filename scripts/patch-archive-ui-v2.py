@@ -1286,3 +1286,90 @@ if tpl.exists():
         tpl.write_text(page, encoding='utf-8')
 
 print('Archive external CSS OK: /static/archive-manager-v3.css vinculado ao painel')
+
+
+# RM_ARCHIVE_REMOVE_LEGACY_PANEL_V1
+# Remove the old server-rendered Compactados card at deploy time. The previous
+# JS hider was inherently racy: the legacy card could be rendered again later
+# and appear at the page footer. We now delete only the legacy block that
+# contains the original exact flow copy (capital "Download" and no "Google"),
+# while keeping the V2 queue whose subtitle is different.
+if tpl.exists():
+    page = tpl.read_text(encoding='utf-8')
+
+    legacy_needles = [
+        'Download → análise → extração/streaming → Drive → limpeza',
+        'Download -> análise -> extração/streaming -> Drive -> limpeza',
+    ]
+
+    def _remove_legacy_archive_card(text):
+        removed = 0
+        while True:
+            positions = [text.find(n) for n in legacy_needles if text.find(n) >= 0]
+            if not positions:
+                break
+            pos = min(positions)
+
+            # Prefer semantic containers first. Walk backwards to the nearest
+            # opening tag and remove through its matching closing tag using a
+            # small depth counter. This avoids touching the V2 panel.
+            candidates = []
+            for tag in ('section', 'article', 'div'):
+                start = text.rfind('<' + tag, 0, pos)
+                if start >= 0:
+                    candidates.append((start, tag))
+            if not candidates:
+                # Last-resort: remove only the legacy heading/subtitle area.
+                line_start = text.rfind('\n', 0, pos)
+                line_end = text.find('\n', pos)
+                if line_start < 0: line_start = 0
+                if line_end < 0: line_end = len(text)
+                text = text[:line_start] + '\n<!-- RM_LEGACY_ARCHIVE_REMOVED -->\n' + text[line_end:]
+                removed += 1
+                continue
+
+            start, tag = max(candidates, key=lambda x: x[0])
+
+            token_re = re.compile(r'</?' + re.escape(tag) + r'\b[^>]*>', re.I)
+            depth = 0
+            end = None
+            for m in token_re.finditer(text, start):
+                token = m.group(0)
+                if token.startswith('</'):
+                    depth -= 1
+                    if depth == 0:
+                        end = m.end()
+                        break
+                elif not token.rstrip().endswith('/>'):
+                    depth += 1
+
+            if end is None or end <= pos or (end - start) > 20000:
+                # Do not risk deleting a huge page region. Replace the legacy
+                # subtitle so it can no longer be mistaken for a live panel,
+                # then stop; the V2 JS hider remains as a fallback.
+                for needle in legacy_needles:
+                    text = text.replace(needle, 'RM_LEGACY_ARCHIVE_REMOVED', 1)
+                removed += 1
+                break
+
+            block = text[start:end]
+            # Safety check: this must be the legacy card, never the V2 queue.
+            if (
+                'Compactados' not in block
+                or 'RM_ARCHIVE_MANAGER_V2' in block
+                or 'Fila de compactados' in block
+                or len(block) > 20000
+            ):
+                for needle in legacy_needles:
+                    text = text.replace(needle, 'RM_LEGACY_ARCHIVE_REMOVED', 1)
+                removed += 1
+                break
+
+            text = text[:start] + '\n<!-- RM_LEGACY_ARCHIVE_REMOVED -->\n' + text[end:]
+            removed += 1
+
+        return text, removed
+
+    page, legacy_removed = _remove_legacy_archive_card(page)
+    tpl.write_text(page, encoding='utf-8')
+    print(f'Archive legacy panel cleanup OK: {legacy_removed} bloco(s) legado(s) removido(s)')
