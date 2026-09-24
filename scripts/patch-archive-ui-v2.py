@@ -116,6 +116,45 @@ if tpl.exists():
     # between "{" and the CSS id selector, and repair HA4.7.4.3 templates.
     text = text.replace('{#rmArchiveManagerV2', '{ #rmArchiveManagerV2')
     text = text.replace("if(['queued','pending','waiting'].includes(s)) queued++;", "if(['queued','pending','waiting','interrupted'].includes(s)) queued++;")
+    # Repair HA4.7.4.5 legacy-card hider in already-patched live templates.
+    old_hide = """  function hideLegacyPanel() {
+    const heads = Array.from(document.querySelectorAll('h1,h2,h3,h4,strong,b'));
+    const old = heads.find(el => el.id !== 'rmArcV2Title' && (el.textContent || '').trim() === 'Compactados');
+    if (!old) return;
+    const box = old.closest('.card,.panel,section') || old.parentElement;
+    if (box && !box.closest('#'+MARK)) box.style.display='none';
+  }
+"""
+    new_hide = """  function hideLegacyPanel() {
+    const all = Array.from(document.querySelectorAll('section,article,div'));
+    const candidates = all.filter(el => {
+      if (el.closest('#'+MARK)) return false;
+      const txt = (el.textContent || '').replace(/\\s+/g, ' ').trim();
+      return txt.includes('Compactados')
+        && txt.includes('Download')
+        && txt.includes('extração/streaming')
+        && txt.includes('Drive')
+        && txt.includes('limpeza')
+        && (txt.includes('Carregando') || txt.includes('Atualizar'));
+    });
+    if (!candidates.length) return;
+    candidates.sort((a,b) => (a.textContent || '').length - (b.textContent || '').length);
+    let box = candidates[0];
+    const semantic = box.closest('section,article,.card,.panel,[class*="card"],[class*="panel"]');
+    if (semantic && !semantic.closest('#'+MARK)) box = semantic;
+    const txt = (box.textContent || '').replace(/\\s+/g, ' ').trim();
+    if (txt.length < 1200 && txt.includes('Compactados')) {
+      box.style.display='none';
+      box.setAttribute('data-rm-legacy-archive-hidden','1');
+    }
+  }
+"""
+    if old_hide in text:
+        text = text.replace(old_hide, new_hide)
+    text = text.replace(
+        "    hideLegacyPanel();\\n    return box;",
+        "    hideLegacyPanel();\\n    setTimeout(hideLegacyPanel, 250);\\n    setTimeout(hideLegacyPanel, 1000);\\n    return box;"
+    )
     if 'RM_ARCHIVE_MANAGER_V2' not in text:
         overlay = r'''
 <!-- RM_ARCHIVE_MANAGER_V2 -->
@@ -152,11 +191,34 @@ if tpl.exists():
   const terminal = s => ['completed','complete','done','success','error','failed','cancelled','canceled'].includes(String(s).toLowerCase());
 
   function hideLegacyPanel() {
-    const heads = Array.from(document.querySelectorAll('h1,h2,h3,h4,strong,b'));
-    const old = heads.find(el => el.id !== 'rmArcV2Title' && (el.textContent || '').trim() === 'Compactados');
-    if (!old) return;
-    const box = old.closest('.card,.panel,section') || old.parentElement;
-    if (box && !box.closest('#'+MARK)) box.style.display='none';
+    // HA4.7.4 originally injected a second "Compactados" card at the end of
+    // api_manager.html. Its title is not always an h1/h2/strong, so the old
+    // selector missed it and users saw a duplicate card stuck below the
+    // normal API queue. Find the small legacy card by its own unique copy.
+    const all = Array.from(document.querySelectorAll('section,article,div'));
+    const candidates = all.filter(el => {
+      if (el.closest('#'+MARK)) return false;
+      const txt = (el.textContent || '').replace(/\\s+/g, ' ').trim();
+      return txt.includes('Compactados')
+        && txt.includes('Download')
+        && txt.includes('extração/streaming')
+        && txt.includes('Drive')
+        && txt.includes('limpeza')
+        && (txt.includes('Carregando') || txt.includes('Atualizar'));
+    });
+    if (!candidates.length) return;
+
+    // Prefer the smallest matching container so we never hide the whole page.
+    candidates.sort((a,b) => (a.textContent || '').length - (b.textContent || '').length);
+    let box = candidates[0];
+    const semantic = box.closest('section,article,.card,.panel,[class*="card"],[class*="panel"]');
+    if (semantic && !semantic.closest('#'+MARK)) box = semantic;
+
+    const txt = (box.textContent || '').replace(/\\s+/g, ' ').trim();
+    if (txt.length < 1200 && txt.includes('Compactados')) {
+      box.style.display='none';
+      box.setAttribute('data-rm-legacy-archive-hidden','1');
+    }
   }
 
   function mount() {
@@ -170,6 +232,8 @@ if tpl.exists():
     else (document.querySelector('main') || document.querySelector('.main-content') || document.body).appendChild(box);
     box.querySelector('#rmArcRefreshV2')?.addEventListener('click', refresh);
     hideLegacyPanel();
+    setTimeout(hideLegacyPanel, 250);
+    setTimeout(hideLegacyPanel, 1000);
     return box;
   }
 
