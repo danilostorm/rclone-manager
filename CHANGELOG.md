@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.7 — 2026-09-24
+
+- refaz o visual da **Fila de compactados** com um override CSS final e mais robusto;
+- restaura card, cabeçalho, botão Atualizar, cards de contadores, empty-state, progresso e ações com o mesmo padrão visual do restante da tela;
+- usa seletividade alta/`!important` somente dentro de `#rmArchiveManagerV2`, evitando interferir na fila normal;
+- melhora responsividade em desktop/tablet/mobile;
+- mantém os controles `Cancelar`, `Continuar`, `Reiniciar`, `Excluir`, `Limpar finalizados` e `Limpar interrompidos`.
+
 ## 1.4.0-rc11-ha4.7.4.6 — 2026-09-24
 
 - corrige o card legado **Compactados** que continuava renderizando no rodapé da tela `API / Extensão`;
