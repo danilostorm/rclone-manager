@@ -1272,7 +1272,7 @@ if tpl.exists():
 ''', encoding='utf-8')
 
     page = tpl.read_text(encoding='utf-8')
-    link = '<link rel="stylesheet" href="/static/archive-manager-v3.css?v=ha4.7.4.8" data-rm-archive-css="v3">'
+    link = '<link rel="stylesheet" href="/static/archive-manager-v3.css?v=ha4.7.4.9" data-rm-archive-css="v3">'
     if 'data-rm-archive-css="v3"' not in page:
         anchor = '<!-- RM_ARCHIVE_MANAGER_V2 -->'
         if anchor in page:
