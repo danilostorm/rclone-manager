@@ -256,7 +256,12 @@ if tpl.exists():
       box.querySelector('#rmArcPwdV2').textContent=pwd;
       const active=jobs.filter(j=>!terminal(statusOf(j))).concat(jobs.filter(j=>terminal(statusOf(j))).slice(0,5));
       const list=box.querySelector('#rmArcListV2');
-      if(!active.length){list.innerHTML='<div class="rm-arc-empty">Nenhum compactado ativo. As tarefas normais continuam na fila acima.</div>';return;}
+      if(!active.length){
+        list.innerHTML='<div class="rm-arc-empty">Nenhum compactado ativo. As tarefas normais continuam na fila acima.</div>';
+        window.__rmArchiveJobsV2=jobs;
+        document.dispatchEvent(new CustomEvent('rm-archive-jobs',{detail:jobs}));
+        return;
+      }
       list.innerHTML=active.map(j=>{
         const id=jobId(j), s=statusOf(j), phase=String(j.phase||s);
         const name=String(j.filename||j.archive_name||j.name||j.source_name||j.url||'Compactado');
@@ -266,13 +271,15 @@ if tpl.exists():
         const dl=num(j.downloaded_bytes||j.archive_bytes||j.source_size_bytes), unpack=num(j.unpacked_bytes||j.extracted_bytes||j.unpacked_size_bytes);
         return `<article class="rm-arc-job"><div><div class="rm-arc-file" title="${esc(name)}">${esc(name)}</div><div class="rm-arc-meta">#${esc(id.slice(0,16))} · destino: ${esc(dest)}</div></div><div><div class="rm-arc-status">${esc(s)} · ${esc(phase)}</div><div class="rm-arc-progress"><i style="width:${pct.toFixed(1)}%"></i></div><div class="rm-arc-meta">${pct.toFixed(1)}% · ${cur}/${tot||'?'} arquivo(s)</div></div><div><div>${esc(bytes(dl))} → ${esc(bytes(unpack))}</div><div class="rm-arc-meta">${esc(j.updated_at||j.created_at||'')}</div></div></article>`;
       }).join('');
+      window.__rmArchiveJobsV2=jobs;
+      document.dispatchEvent(new CustomEvent('rm-archive-jobs',{detail:jobs}));
     }catch(e){
       box.querySelector('#rmArcListV2').innerHTML=`<div class="rm-arc-empty">Não foi possível atualizar compactados: ${esc(e.message)}</div>`;
     }
   }
 
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>{mount();refresh();setInterval(refresh,3000);},{once:true});
-  else {mount();refresh();setInterval(refresh,3000);}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>{mount();refresh();setInterval(refresh,5000);},{once:true});
+  else {mount();refresh();setInterval(refresh,5000);}
 })();
 </script>
 '''
@@ -790,7 +797,7 @@ if tpl.exists():
     if (name === 'restart' && !confirm('Reiniciar do zero? O staging será apagado e o download recomeçará.')) return;
     try {
       await callJson('/api/v1/archive/jobs/' + encodeURIComponent(id) + '/action', {action:name, cleanup:true, ...extra});
-      await load();
+      document.getElementById('rmArcRefreshV2')?.click();
     } catch (e) {
       alert(e.message);
     }
@@ -801,7 +808,7 @@ if tpl.exists():
     if (!confirm('Remover tarefas ' + label + ' e apagar seus temporários?')) return;
     try {
       await callJson('/api/v1/archive/maintenance', {action:name, cleanup:true});
-      await load();
+      document.getElementById('rmArcRefreshV2')?.click();
     } catch (e) {
       alert(e.message);
     }
@@ -897,17 +904,12 @@ if tpl.exists():
     if (p) p.textContent = pwd;
   }
 
-  async function load() {
-    try {
-      const data = await callJson('/api/v1/archive/jobs?limit=100');
-      jobs = Array.isArray(data.jobs) ? data.jobs : [];
-      decorate();
-    } catch (_) {}
-  }
-
-  new MutationObserver(() => decorate()).observe(document.documentElement, {subtree:true, childList:true});
-  load();
-  setInterval(load, 2500);
+  jobs = Array.isArray(window.__rmArchiveJobsV2) ? window.__rmArchiveJobsV2 : [];
+  decorate();
+  document.addEventListener('rm-archive-jobs', ev => {
+    jobs = Array.isArray(ev.detail) ? ev.detail : [];
+    decorate();
+  });
 })();
 </script>
 '''
@@ -1373,3 +1375,116 @@ if tpl.exists():
     page, legacy_removed = _remove_legacy_archive_card(page)
     tpl.write_text(page, encoding='utf-8')
     print(f'Archive legacy panel cleanup OK: {legacy_removed} bloco(s) legado(s) removido(s)')
+
+
+# RM_ARCHIVE_UI_PERF_AND_HEAD_V1
+# HA4.7.4.10: repair already-patched live templates. Keep only one archive
+# poller, remove the document-wide MutationObserver, and make sure the external
+# stylesheet lives in <head> instead of the body/content block.
+if tpl.exists():
+    page = tpl.read_text(encoding='utf-8')
+
+    page = page.replace('setInterval(refresh,3000)', 'setInterval(refresh,5000)')
+
+    page = page.replace(
+        """      if(!active.length){list.innerHTML='<div class="rm-arc-empty">Nenhum compactado ativo. As tarefas normais continuam na fila acima.</div>';return;}""",
+        """      if(!active.length){
+        list.innerHTML='<div class="rm-arc-empty">Nenhum compactado ativo. As tarefas normais continuam na fila acima.</div>';
+        window.__rmArchiveJobsV2=jobs;
+        document.dispatchEvent(new CustomEvent('rm-archive-jobs',{detail:jobs}));
+        return;
+      }"""
+    )
+    page = page.replace(
+        """      }).join('');
+    }catch(e){""",
+        """      }).join('');
+      window.__rmArchiveJobsV2=jobs;
+      document.dispatchEvent(new CustomEvent('rm-archive-jobs',{detail:jobs}));
+    }catch(e){"""
+    )
+
+    page = page.replace(
+        """      await load();""",
+        """      document.getElementById('rmArcRefreshV2')?.click();"""
+    )
+    page = page.replace(
+        """  async function load() {
+    try {
+      const data = await callJson('/api/v1/archive/jobs?limit=100');
+      jobs = Array.isArray(data.jobs) ? data.jobs : [];
+      decorate();
+    } catch (_) {}
+  }
+
+  new MutationObserver(() => decorate()).observe(document.documentElement, {subtree:true, childList:true});
+  load();
+  setInterval(load, 2500);""",
+        """  jobs = Array.isArray(window.__rmArchiveJobsV2) ? window.__rmArchiveJobsV2 : [];
+  decorate();
+  document.addEventListener('rm-archive-jobs', ev => {
+    jobs = Array.isArray(ev.detail) ? ev.detail : [];
+    decorate();
+  });"""
+    )
+
+    # Keep only one body copy of the link, then move it to document.head at
+    # runtime. This works even when api_manager.html cannot write a head block.
+    page = re.sub(
+        r'<link\s+rel="stylesheet"\s+href="/static/archive-manager-v3\.css\?v=[^"]+"\s+data-rm-archive-css="v3"\s*>\s*',
+        '',
+        page,
+        flags=re.I,
+    )
+    head_loader = r'''
+<!-- RM_ARCHIVE_CSS_HEAD_LOADER_V1 -->
+<script>
+(() => {
+  const href='/static/archive-manager-v3.css?v=ha4.7.4.10';
+  function ensureArchiveCss(){
+    let link=document.querySelector('link[data-rm-archive-css="v3"]');
+    if(!link){
+      link=document.createElement('link');
+      link.rel='stylesheet';
+      link.dataset.rmArchiveCss='v3';
+    }
+    if(link.getAttribute('href')!==href) link.setAttribute('href',href);
+    if(link.parentElement!==document.head) document.head.appendChild(link);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',ensureArchiveCss,{once:true});
+  else ensureArchiveCss();
+})();
+</script>
+'''
+    if 'RM_ARCHIVE_CSS_HEAD_LOADER_V1' not in page:
+        anchor='<!-- RM_ARCHIVE_MANAGER_V2 -->'
+        if anchor in page:
+            page=page.replace(anchor, head_loader + '\n' + anchor, 1)
+        else:
+            page += '\n' + head_loader
+    tpl.write_text(page, encoding='utf-8')
+
+# Polling archive jobs must be cheap: the UI only needs to know whether staging
+# exists. Recursive stat/rglob is reserved for explicit maintenance, not every
+# 2.5/3 second status refresh.
+if archive_py.exists():
+    arc = archive_py.read_text(encoding='utf-8')
+    if 'RM_ARCHIVE_CONTROLS_PERF_V1' not in arc and 'RM_ARCHIVE_CONTROLS_V1' in arc:
+        arc += r'''
+
+# RM_ARCHIVE_CONTROLS_PERF_V1
+_ARCHIVE_STAGE_INFO_DEEP = _archive_stage_info
+def _archive_stage_info(job_id):
+    stage = _archive_stage_path(job_id)
+    return {
+        'stage_exists': stage.exists(),
+        'stage_path': str(stage),
+        'stage_files': 0,
+        'stage_bytes': 0,
+    }
+'''
+        archive_py.write_text(arc, encoding='utf-8')
+        with tempfile.NamedTemporaryFile(suffix='.pyc') as f:
+            py_compile.compile(str(archive_py), doraise=True, cfile=f.name)
+
+print('Archive UI perf/head OK: CSS no head + poll único 5s + staging raso')
