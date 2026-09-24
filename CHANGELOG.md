@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.10 — 2026-09-24
+
+- corrige o CSS da **Fila de compactados** carregando o stylesheet externo no `<head>` em tempo de execução;
+- remove a dependência de `<link rel="stylesheet">` dentro do bloco de conteúdo/body, que podia ser ignorado e deixar o painel sem estilo;
+- reduz o polling de compactados para um único fluxo a cada 5 s;
+- remove o segundo polling de 2,5 s e o `MutationObserver` global que observava todo o DOM;
+- os controles agora reutilizam os dados do mesmo refresh da fila via evento `rm-archive-jobs`;
+- o endpoint de status deixa de percorrer recursivamente todo o staging a cada atualização; no polling consulta apenas se o staging existe;
+- mantém atualização manual imediata pelo botão **Atualizar** e após ações como cancelar/reiniciar/excluir.
+
 ## 1.4.0-rc11-ha4.7.4.9 — 2026-09-24
 
 - remove o card legado **Compactados** diretamente do template no deploy, em vez de depender de JavaScript para escondê-lo depois;
