@@ -95,6 +95,9 @@ python3 "$ROOT/scripts/patch-git-source.py" "$TMP/source" "$VERSION"
 if [ -f "$ROOT/scripts/patch-archive-import.py" ]; then
   python3 "$ROOT/scripts/patch-archive-import.py" "$TMP/source"
 fi
+if [ -f "$ROOT/scripts/patch-archive-rar.py" ]; then
+  python3 "$ROOT/scripts/patch-archive-rar.py" "$TMP/source"
+fi
 printf '%s\n' "$VERSION" > "$TMP/source/VERSION"
 
 # O bootstrap MultiServer usa Paramiko nas versões HA4 atuais.
