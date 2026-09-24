@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.8 — 2026-09-24
+
+- corrige definitivamente a **Fila de compactados** sem CSS;
+- publica o estilo como arquivo estático real em `/static/archive-manager-v3.css`, em vez de depender apenas de blocos `<style>` injetados no template;
+- adiciona link versionado `/static/archive-manager-v3.css?v=ha4.7.4.8` ao `api_manager.html`;
+- mantém o CSS isolado em `#rmArchiveManagerV2`, sem alterar a fila normal da API;
+- preserva layout responsivo, cards de contadores, progresso e controles de ciclo de vida dos compactados.
+
 ## 1.4.0-rc11-ha4.7.4.7 — 2026-09-24
 
 - refaz o visual da **Fila de compactados** com um override CSS final e mais robusto;
