@@ -12,7 +12,7 @@
 - novas fases no Gerenciador API/Extensão: download, verificação, extração, upload, limpeza, aguardando senha, concluído/erro;
 - histórico persistente de links é atualizado somente após conclusão bem-sucedida, mantendo a proteção **JÁ BAIXADO / deseja baixar novamente?**;
 - adiciona endpoints `/api/v1/extension/archive/*` e `/api/v1/archive/*` e atualiza a API da extensão para `drive-link-v14`;
-- imagem Docker passa a incluir `p7zip-full` e `libarchive-tools` para RAR/7z e inspeção/extração ampliada;
+- imagem Docker passa a incluir `p7zip-full`, `libarchive-tools` e `unar/lsar`; RAR/RAR5 usa `lsar` para inspeção segura e `unar` para extração, sem depender de repositório non-free;
 - extensão v1.10.0 adiciona controles de extração, streaming, envio do original, pasta raiz e senha preservando seleção de servidor/destino da v1.9.0.
 
 ## 1.4.0-rc11-ha4.7.3.12 — 2026-08-31
