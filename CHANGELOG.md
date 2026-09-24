@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.9 — 2026-09-24
+
+- remove o card legado **Compactados** diretamente do template no deploy, em vez de depender de JavaScript para escondê-lo depois;
+- elimina o efeito de “voltar para o rodapé” causado pelo painel legado renderizado novamente de forma assíncrona;
+- mantém apenas a nova **Fila de compactados** posicionada junto da área principal da API;
+- preserva o CSS externo `/static/archive-manager-v3.css` e atualiza o cache-buster para `ha4.7.4.9`;
+- mantém todos os controles de ciclo de vida adicionados nas versões anteriores.
+
 ## 1.4.0-rc11-ha4.7.4.8 — 2026-09-24
 
 - corrige definitivamente a **Fila de compactados** sem CSS;
