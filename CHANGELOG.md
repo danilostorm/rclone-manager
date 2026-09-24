@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.11 — 2026-09-24
+
+- melhora o modo **Pasta: automático** dos compactados;
+- filme único (`mkv/mp4/...`) com legendas, NFO ou artes auxiliares é enviado diretamente para a pasta de destino, sem criar `Filme/Filme.mkv`;
+- quando o ZIP/RAR/7z já contém uma única pasta raiz real, essa estrutura interna é preservada sem adicionar uma segunda pasta com o nome do arquivo compactado;
+- séries/packs com múltiplos vídeos soltos continuam isolados dentro da pasta automática do pacote;
+- pastas/modos manuais não são alterados;
+- retomada, cancelamento, limpeza, proteção de espaço e streaming continuam iguais ao HA4.7.4.10.
+
 ## 1.4.0-rc11-ha4.7.4.10 — 2026-09-24
 
 - corrige o CSS da **Fila de compactados** carregando o stylesheet externo no `<head>` em tempo de execução;
