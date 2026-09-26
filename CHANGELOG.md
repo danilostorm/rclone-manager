@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.12 — 2026-09-26
+
+- adiciona retry automático para downloads de ZIP/RAR/7z/TAR em falhas transitórias de rede/provedor, com até 6 tentativas e backoff;
+- a tarefa inteira também se recupera automaticamente de falhas transitórias de upload/rclone, sem exigir clique repetido em **Tentar novamente**;
+- downloads completos já presentes no staging são reaproveitados nas novas tentativas;
+- quando a inspeção detecta arquivo truncado/corrompido, somente o staging daquela tarefa é limpo e o compactado é baixado novamente;
+- erros permanentes como senha incorreta, falta de espaço e formato não suportado não entram em loop automático;
+- senha do compactado passa a ser preservada entre retries e reinícios do Manager em arquivo criptografado com `APP_SECRET`, com permissão 0600;
+- a senha persistida é removida automaticamente quando a tarefa conclui ou é excluída;
+- não há fallback para senha em texto puro: se criptografia/APP_SECRET estiver indisponível, a senha fica somente em memória.
+
 ## 1.4.0-rc11-ha4.7.4.11 — 2026-09-24
 
 - melhora o modo **Pasta: automático** dos compactados;
