@@ -45,6 +45,7 @@ _RM_RES_BACKOFF = (2, 5, 10, 20, 30, 45)
 _RM_RES_ORIG_CREATE_JOB = create_job
 _RM_RES_ORIG_RESUME_WITH_PASSWORD = resume_with_password
 _RM_RES_ORIG_DOWNLOAD_ONE = _download_one
+_RM_RES_ORIG_RUN_JOB = _run_job
 _RM_RES_ORIG_UPDATE_JOB = _update_job
 _RM_RES_ORIG_ARCHIVE_JOB_CONTROL = globals().get('archive_job_control')
 
@@ -211,6 +212,46 @@ def _rm_res_transient_download_error(exc):
     return any(x in text for x in transient)
 
 
+
+def _rm_res_password_or_permanent_error(exc):
+    text = (type(exc).__name__ + ': ' + str(exc)).lower()
+    permanent = (
+        'password', 'senha', 'encrypted',
+        'no space', 'espaço livre', 'insufficient space',
+        'unsupported archive', 'formato não suportado',
+        'unsupported method',
+    )
+    return any(x in text for x in permanent)
+
+
+def _rm_res_corrupt_archive_error(exc):
+    text = (type(exc).__name__ + ': ' + str(exc)).lower()
+    if _rm_res_password_or_permanent_error(exc):
+        return False
+    corrupt = (
+        'unexpected end of archive', 'unexpected end of data',
+        'unexpected eof', 'premature end', 'truncated',
+        'headers error', 'header error', 'data error',
+        'crc failed', 'checksum error',
+        'can not open the file as archive', 'cannot open file as archive',
+        'not a zip file', 'badzipfile',
+    )
+    return any(x in text for x in corrupt)
+
+
+def _rm_res_transient_job_error(exc):
+    if _rm_res_password_or_permanent_error(exc):
+        return False
+    return _rm_res_transient_download_error(exc) or any(
+        x in (type(exc).__name__ + ': ' + str(exc)).lower()
+        for x in (
+            'rclone', 'rcat', 'upload failed', 'copy failed',
+            'i/o timeout', 'input/output error', 'transport endpoint',
+            'broken pipe', 'connection closed',
+        )
+    )
+
+
 def _rm_res_snapshot(dest):
     out = {}
     try:
@@ -243,6 +284,82 @@ def _rm_res_cleanup_failed_attempt(dest, before):
                 pass
     except Exception:
         pass
+
+
+
+def _run_job(job_id):
+    jid = str(job_id or '').strip()
+    last_exc = None
+
+    # Retry the whole archive pipeline for transient provider/upload failures.
+    # Complete downloads are reused by RM_ARCHIVE_CONTROLS_V1. If inspection
+    # says the archive itself is truncated/corrupt, only then clear its staging
+    # and perform a clean re-download.
+    for attempt in range(1, 5):
+        try:
+            _rm_res_restore_password(jid)
+            return _RM_RES_ORIG_RUN_JOB(job_id)
+        except Exception as exc:
+            last_exc = exc
+
+            if not (_rm_res_transient_job_error(exc) or _rm_res_corrupt_archive_error(exc)):
+                raise
+            if attempt >= 4:
+                break
+
+            corrupt = _rm_res_corrupt_archive_error(exc)
+            wait_s = (5, 15, 30)[attempt - 1]
+
+            if corrupt:
+                try:
+                    stage = STAGING_ROOT / ('job-' + jid)
+                    import shutil as _rm_res_shutil
+                    if stage.exists():
+                        _rm_res_shutil.rmtree(stage, ignore_errors=True)
+                    _RM_RES_ORIG_UPDATE_JOB(
+                        jid,
+                        downloaded_bytes=0,
+                        archive_bytes=0,
+                        estimated_unpacked_bytes=0,
+                        unpacked_bytes=0,
+                        uploaded_bytes=0,
+                        total_files=0,
+                        completed_files=0,
+                        progress=0,
+                        current_item='',
+                    )
+                except Exception:
+                    pass
+                try:
+                    _ARCHIVE_RESUME_REQUESTED.discard(jid)
+                except Exception:
+                    pass
+                retry_kind = 'arquivo incompleto/corrompido; novo download'
+            else:
+                try:
+                    _ARCHIVE_RESUME_REQUESTED.add(jid)
+                except Exception:
+                    pass
+                retry_kind = 'falha transitória; reutilizando download completo'
+
+            try:
+                _RM_RES_ORIG_UPDATE_JOB(
+                    jid,
+                    status='running',
+                    phase='auto_retry',
+                    message=(
+                        f'{retry_kind}. Nova tentativa automática '
+                        f'{attempt + 1}/4 em {wait_s}s'
+                    ),
+                    error=str(exc)[:1000],
+                    finished_at='',
+                )
+            except Exception:
+                pass
+
+            _rm_res_time.sleep(wait_s)
+
+    raise last_exc
 
 
 def _download_one(job_id, row, dest, index, total):
