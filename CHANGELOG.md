@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.13 — 2026-09-27
+
+- transforma **Fila de compactados** em um download manager real e persistente;
+- padrão seguro de **1 job simultâneo**; novos ZIP/RAR/7z/TAR entram em fila em vez de iniciarem todos de uma vez;
+- a fila persiste em `/data/archive-download-manager.json` e volta após restart;
+- se uma tarefa termina em `error/failed`, a fila **para** e não inicia o próximo download até o erro ser resolvido, excluído ou liberado manualmente;
+- adiciona pausa/retomada global da fila, concorrência configurável (1–4), subir/descer tarefa e **Executar agora**;
+- antes de iniciar um job valida espaço livre, mínimo configurado e limite opcional de staging;
+- adiciona progresso em bytes, tamanho total conhecido, quanto falta, velocidade e ETA no painel de compactados;
+- o monitor de progresso acompanha somente o staging do job ativo e mantém o polling barato;
+- mantém retries automáticos do HA4.7.4.12 e reutiliza download completo quando possível;
+- adiciona suporte a pasta pública do Dropbox (`/scl/fo/` e `/sh/`): o servidor converte o compartilhamento para download ZIP, preservando a árvore de subpastas/temporadas;
+- novo endpoint de gerenciamento: `/api/v1/archive/manager` e equivalente da extensão;
+- extensão v1.11.0 reconhece a pasta Dropbox atual como um pacote único e mostra fila, baixado/total, restante, velocidade e ETA.
+
 ## 1.4.0-rc11-ha4.7.4.12 — 2026-09-26
 
 - adiciona retry automático para downloads de ZIP/RAR/7z/TAR em falhas transitórias de rede/provedor, com até 6 tentativas e backoff;
