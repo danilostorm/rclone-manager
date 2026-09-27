@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.14 — 2026-09-27
+
+- adiciona garbage collector seguro para `/cache/archive-import`, evitando acúmulo indefinido de temporários após updates/restarts;
+- jobs ativos, queued e aguardando senha nunca são apagados;
+- `interrupted/error` recentes são preservados por 24h para permitir **Continuar** sem novo download;
+- staging sem job correspondente, e resíduos de jobs concluídos/cancelados/excluídos, são removidos automaticamente;
+- staging de `interrupted/error` com mais de 24h é limpo automaticamente no startup e em varredura periódica a cada 15 min;
+- antes de bloquear um novo download por pouco espaço, o Manager executa uma limpeza segura de órfãos/finalizados;
+- adiciona botões **Limpar temporários órfãos** e **Limpar antigos >24h** na Fila de compactados;
+- a limpeza manual informa quantos GB foram liberados e quantos stagings foram removidos;
+- retenção pode ser ajustada por `RM_ARCHIVE_ORPHAN_RETENTION_HOURS` (padrão 24h) e intervalo por `RM_ARCHIVE_GC_INTERVAL_SECONDS` (padrão 900s).
+
 ## 1.4.0-rc11-ha4.7.4.13 — 2026-09-27
 
 - transforma **Fila de compactados** em um download manager real e persistente;
