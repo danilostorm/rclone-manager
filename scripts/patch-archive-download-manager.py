@@ -38,6 +38,7 @@ _RMQM_STATE_FILE = DATA_DIR / 'archive-download-manager.json'
 _RMQM_LOCK = _rmqm_threading.RLock()
 _RMQM_WAKE = _rmqm_threading.Event()
 _RMQM_DYNAMIC = {}
+_RMQM_WATCHING = set()
 _RMQM_DEFAULTS = {
     'max_concurrent_jobs': 1,
     'stop_queue_on_error': True,
@@ -192,14 +193,20 @@ def _rmqm_dir_bytes(path):
     return total
 
 
-def _rmqm_disk_stats():
+def _rmqm_disk_stats(deep=False):
     try:
         usage = _rmqm_shutil.disk_usage(STAGING_ROOT)
         free = int(usage.free)
         total = int(usage.total)
     except Exception:
         free = total = 0
-    staging = _rmqm_dir_bytes(STAGING_ROOT)
+    if deep:
+        staging = _rmqm_dir_bytes(STAGING_ROOT)
+    else:
+        staging = sum(
+            max(0, int((row or {}).get('downloaded_bytes_live') or 0))
+            for row in _RMQM_DYNAMIC.values()
+        )
     return {
         'disk_total_bytes': total,
         'disk_free_bytes': free,
@@ -209,7 +216,7 @@ def _rmqm_disk_stats():
 
 def _rmqm_can_start(job):
     cfg = _RMQM_STATE['settings']
-    stats = _rmqm_disk_stats()
+    stats = _rmqm_disk_stats(deep=bool(int(cfg.get('max_staging_gb') or 0)))
     free = int(stats.get('disk_free_bytes') or 0)
     staging = int(stats.get('staging_bytes') or 0)
     expected = _rmqm_expected_bytes(job)
@@ -301,6 +308,8 @@ _start_job = _rmqm_start_job
 
 def _rmqm_progress_watch(job_id):
     jid = str(job_id or '').strip()
+    with _RMQM_LOCK:
+        _RMQM_WATCHING.add(jid)
     last_bytes = 0
     last_ts = _rmqm_time.time()
     smooth_speed = 0.0
@@ -358,6 +367,8 @@ def _rmqm_progress_watch(job_id):
             _RMQM_STATE['blocked_by'] = ''
         _rmqm_save_state()
 
+    with _RMQM_LOCK:
+        _RMQM_WATCHING.discard(jid)
     _RMQM_WAKE.set()
 
 
@@ -374,8 +385,9 @@ def _rmqm_dispatch_once():
             _rmqm_save_state()
 
         limit = int(_RMQM_STATE['settings'].get('max_concurrent_jobs') or 1)
-        alive = sum(1 for jid in list(_JOB_THREADS) if _rmqm_worker_alive(jid))
-        slots = max(0, limit - alive)
+        active_ids = {str(jid) for jid in list(_JOB_THREADS) if _rmqm_worker_alive(jid)}
+        active_ids.update(_RMQM_WATCHING)
+        slots = max(0, limit - len(active_ids))
 
         while slots > 0 and _RMQM_STATE['queue']:
             jid = _RMQM_STATE['queue'][0]
@@ -424,14 +436,20 @@ def _rmqm_dispatch_once():
             except Exception:
                 pass
 
-            _RMQM_ORIG_START_JOB(jid)
-            _rmqm_threading.Thread(
-                target=_rmqm_progress_watch,
-                args=(jid,),
-                name='archive-manager-watch-' + jid,
-                daemon=True,
-            ).start()
-            slots -= 1
+            _RMQM_WATCHING.add(jid)
+            try:
+                _RMQM_ORIG_START_JOB(jid)
+                _rmqm_threading.Thread(
+                    target=_rmqm_progress_watch,
+                    args=(jid,),
+                    name='archive-manager-watch-' + jid,
+                    daemon=True,
+                ).start()
+                slots -= 1
+            except Exception:
+                _RMQM_WATCHING.discard(jid)
+                _rmqm_queue_add(jid, front=True)
+                raise
 
 
 def _rmqm_dispatch_loop():
@@ -518,7 +536,7 @@ def list_jobs(limit=50):
 
 
 def archive_manager_status():
-    stats = _rmqm_disk_stats()
+    stats = _rmqm_disk_stats(deep=False)
     with _RMQM_LOCK:
         state = {
             'queue': list(_RMQM_STATE['queue']),
