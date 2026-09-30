@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.15 — 2026-09-29
+
+- corrige a retomada de compactados grandes: **Continuar** não descarta mais dezenas de GB já presentes no staging;
+- identifica a causa do comportamento anterior: o retry removia o arquivo alterado da tentativa que falhava e a rotina de resume só reutilizava downloads 100% completos;
+- adiciona retomada real por HTTP `Range`, anexando os novos bytes exatamente após o último byte salvo;
+- valida obrigatoriamente `206 Partial Content` e `Content-Range` antes de anexar dados, evitando corrupção silenciosa;
+- em nova queda de rede durante a retomada, o parcial permanece no disco e a próxima tentativa continua do novo ponto;
+- quando o provider ignora `Range` e responde `200`, o Manager **preserva o parcial e para** em vez de sobrescrevê-lo do zero;
+- trata `416 Range Not Satisfiable` como download completo quando o tamanho remoto confirma que o staging já contém 100%;
+- o tamanho total descoberto por `Content-Range` alimenta o Download Manager para mostrar total, restante, velocidade e ETA mesmo quando a extensão não conhecia o tamanho inicialmente;
+- mantém compatibilidade com a fila serial, senha persistente, GC de staging e ZIP de pasta pública do Dropbox;
+- adiciona diagnóstico `archive_partial_resume_status()` para validar o recurso dentro do container.
+
 ## 1.4.0-rc11-ha4.7.4.14 — 2026-09-27
 
 - adiciona garbage collector seguro para `/cache/archive-import`, evitando acúmulo indefinido de temporários após updates/restarts;
