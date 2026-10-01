@@ -1,6 +1,6 @@
 # Rclone Manager — HA atual
 
-Versão atual: **1.4.0-rc11-ha4.7.3**.
+Versão atual: **1.4.0-rc11-ha4.7.4.16**.
 
 A árvore ativa foi simplificada em 2026-08-26. Patches, bundles e pipelines históricos foram retirados do `main`. A instalação atual usa um único payload versionado, dividido em partes pequenas e validado por SHA-256. Depois da primeira migração, a atualização normal é por `git pull`.
 
