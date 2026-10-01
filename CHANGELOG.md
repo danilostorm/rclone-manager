@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.16 — 2026-10-01
+
+- no **Unraid/AEROCOOL**, move o staging de compactados para `/mnt/user/Downloads/rclone-manager/archive-import`, montado dentro do container em `/cache/archive-import`; download e extração passam a usar o espaço do share Downloads;
+- preserva Oracle/VPS e Zorin sem alteração de staging; continuam usando o cache local atual;
+- na primeira ativação no Unraid, migra staging antigo do appdata para o novo caminho somente quando o destino novo está vazio, preservando parciais da retomada;
+- pastas públicas do Dropbox `/scl/fo/` e `/sh/` passam por enumeração segura antes da normalização; quando contêm vídeo/áudio, os arquivos são enviados para a **fila normal** em vez de transformar toda a pasta em um ZIP gigante;
+- preserva caminho relativo de temporada/subpasta nos itens Dropbox e mantém fallback conservador para o modo ZIP quando a enumeração falha, fica incompleta ou a pasta não contém mídia;
+- o parser de pasta Dropbox lê os metadados embutidos da página pública, inclusive os prefetches codificados em Base64, com limites de páginas/profundidade/itens para evitar enumeração infinita;
+- a fila normal passa a tratar **quota/rate-limit** como condição temporária: HTTP 429/509 e mensagens conhecidas de quota/cota/bandwidth entram em espera e são repetidas automaticamente;
+- o backoff de cota é 1 min, 2 min, 5 min, 10 min e depois 15 min por tentativa, com cancelamento cooperativo; HTTP 403 só entra nesse fluxo quando a própria mensagem também indica quota/rate-limit, evitando mascarar erro real de permissão;
+- os overlays são validados por `py_compile` antes do container de produção ser recriado.
+
 ## 1.4.0-rc11-ha4.7.4.15 — 2026-09-29
 
 - corrige a retomada de compactados grandes: **Continuar** não descarta mais dezenas de GB já presentes no staging;
