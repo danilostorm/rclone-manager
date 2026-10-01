@@ -92,6 +92,12 @@ fi
 [ -f "$TMP/source/requirements.txt" ] || { echo 'Fonte inválida: requirements.txt ausente.' >&2; exit 1; }
 
 python3 "$ROOT/scripts/patch-git-source.py" "$TMP/source" "$VERSION"
+if [ -f "$ROOT/scripts/patch-dropbox-media-folders.py" ]; then
+  python3 "$ROOT/scripts/patch-dropbox-media-folders.py" "$TMP/source"
+fi
+if [ -f "$ROOT/scripts/patch-drive-link-quota-wait.py" ]; then
+  python3 "$ROOT/scripts/patch-drive-link-quota-wait.py" "$TMP/source"
+fi
 if [ -f "$ROOT/scripts/patch-archive-import.py" ]; then
   python3 "$ROOT/scripts/patch-archive-import.py" "$TMP/source"
 fi
@@ -208,6 +214,31 @@ set_env CONTAINER_NAME "$CONTAINER"
 set_env PLATFORM_NAME "$PLATFORM_NAME"
 set_env PLATFORM_SUBTITLE "$PLATFORM_SUBTITLE"
 
+# HA4.7.4.16: no Unraid, o staging de compactados (download + extração) usa
+# /mnt/user/Downloads por padrão. Oracle/VPS e Zorin continuam exatamente no
+# cache local atual. O caminho fica persistido no .env para permitir ajuste
+# posterior sem editar compose.
+ARCHIVE_STAGE_HOST=''
+if [ "$PLATFORM" = unraid ]; then
+  ARCHIVE_STAGE_HOST="$(grep -E '^RM_UNRAID_ARCHIVE_STAGE_HOST=' "$DEST/.env" 2>/dev/null | tail -n1 | cut -d= -f2- || true)"
+  [ -n "$ARCHIVE_STAGE_HOST" ] || ARCHIVE_STAGE_HOST='/mnt/user/Downloads/rclone-manager/archive-import'
+  set_env RM_UNRAID_ARCHIVE_STAGE_HOST "$ARCHIVE_STAGE_HOST"
+  mkdir -p "$ARCHIVE_STAGE_HOST"
+
+  # Primeira migração: se ainda houver staging no antigo appdata e o novo
+  # destino estiver vazio, preserve os parciais antes de ativar o bind.
+  OLD_ARCHIVE_STAGE="$DEST/cache/archive-import"
+  OLD_STAGE_ITEM="$(find "$OLD_ARCHIVE_STAGE" -mindepth 1 -print -quit 2>/dev/null || true)"
+  NEW_STAGE_ITEM="$(find "$ARCHIVE_STAGE_HOST" -mindepth 1 -print -quit 2>/dev/null || true)"
+  if [ -n "$OLD_STAGE_ITEM" ] && [ -z "$NEW_STAGE_ITEM" ]; then
+    echo "Migrando staging de compactados para $ARCHIVE_STAGE_HOST ..."
+    cp -a "$OLD_ARCHIVE_STAGE"/. "$ARCHIVE_STAGE_HOST"/
+    find "$OLD_ARCHIVE_STAGE" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+  elif [ -n "$OLD_STAGE_ITEM" ] && [ -n "$NEW_STAGE_ITEM" ]; then
+    echo "AVISO: staging antigo e novo possuem dados; preservando ambos e usando o novo destino." >&2
+  fi
+fi
+
 mkdir -p /mnt/rclone-manager-remotes
 if ! mountpoint -q /mnt/rclone-manager-remotes; then
   mount --bind /mnt/rclone-manager-remotes /mnt/rclone-manager-remotes
@@ -215,9 +246,29 @@ fi
 mount --make-rshared /mnt/rclone-manager-remotes || true
 
 cd "$DEST"
-docker compose --env-file .env config >/dev/null
-docker compose --env-file .env build --pull
-docker compose --env-file .env up -d --force-recreate
+COMPOSE=(docker compose --env-file .env -f docker-compose.yml)
+
+if [ "$PLATFORM" = unraid ]; then
+  BASE_SERVICE="$("${COMPOSE[@]}" config --services | head -n1)"
+  [ -n "$BASE_SERVICE" ] || {
+    echo 'Não foi possível descobrir o serviço principal do docker-compose.' >&2
+    exit 1
+  }
+  cat > docker-compose.archive-staging.yml <<YAML
+services:
+  $BASE_SERVICE:
+    volumes:
+      - type: bind
+        source: "$ARCHIVE_STAGE_HOST"
+        target: /cache/archive-import
+YAML
+  COMPOSE+=(-f docker-compose.archive-staging.yml)
+  echo "Staging de compactados: $ARCHIVE_STAGE_HOST -> /cache/archive-import"
+fi
+
+"${COMPOSE[@]}" config >/dev/null
+"${COMPOSE[@]}" build --pull
+"${COMPOSE[@]}" up -d --force-recreate
 
 for _ in $(seq 1 60); do
   STATUS="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$CONTAINER" 2>/dev/null || true)"
