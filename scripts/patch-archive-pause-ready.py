@@ -8,6 +8,20 @@ if len(sys.argv) != 2:
     raise SystemExit("uso: patch-archive-pause-ready.py SOURCE_ROOT")
 
 root = Path(sys.argv[1])
+
+# HA4.7.4.22: partial-resume V1 is already present on existing installations,
+# so apply the no-Range compatibility overlay from this already-wired deploy
+# step before the pause/ready overlay runs.
+import runpy as _rmpf_runpy
+_nr = Path(__file__).with_name("patch-archive-no-range-fallback.py")
+if _nr.exists():
+    _old_argv = list(sys.argv)
+    try:
+        sys.argv = [str(_nr), str(root)]
+        _rmpf_runpy.run_path(str(_nr), run_name="__main__")
+    finally:
+        sys.argv = _old_argv
+
 appdir = root / "app"
 archive_py = appdir / "archive_import.py"
 app_py = appdir / "app.py"
