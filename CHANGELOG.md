@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.23 — 2026-10-02
+
+- corrige deploy no Unraid quando o Buildx não consegue atualizar `/root/.docker/buildx/activity` por filesystem read-only;
+- o deploy do Unraid passa a usar um estado Buildx gravável em `/tmp/rclone-manager-buildx`;
+- Oracle/VPS não são alterados por essa correção;
+- mantém o fallback sem HTTP Range da HA4.7.4.22 e todos os diagnósticos/controles anteriores.
+
 ## 1.4.0-rc11-ha4.7.4.22 — 2026-10-02
 
 - adiciona fallback para origens que ignoram HTTP Range e respondem HTTP 200;
