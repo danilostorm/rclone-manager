@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.20 — 2026-10-01
+
+- adiciona **Pausar** por tarefa na fila de compactados, tanto para job em download/processamento quanto para job apenas aguardando na fila;
+- a pausa é cooperativa e preserva integralmente o staging; **Continuar** volta pela fila e reutiliza o arquivo parcial/completo, sem apagar os bytes já baixados;
+- jobs pausados passam a ser protegidos pelo GC e aparecem como aguardando no painel;
+- corrige a leitura confusa de um job com 100% dos bytes no staging mas ainda em `queued`: o painel passa a mostrar **download pronto, aguardando processamento** em vez de parecer que a tarefa deveria estar finalizada;
+- corrige o cálculo de espaço da fila: se um job de 137 GB já possui 137 GB no staging, o Manager não reserva outros 137 GB para iniciar; considera somente os bytes que ainda faltam baixar;
+- quando a vaga da fila fica livre, um download já completo segue para análise/extração/upload, reutilizando o staging existente;
+- mantém HA4.7.4.19 estável, staging do Unraid em `/mnt/user/Downloads/rclone-manager/archive-import`, expansão de pastas Dropbox e HTTP Range resume;
+- o retry automático específico de quota/rate-limit continua temporariamente desativado nesta versão.
+
 ## 1.4.0-rc11-ha4.7.4.19 — 2026-10-01
 
 - hotfix de recuperação para instalações que receberam a HA4.7.4.17/.18 e ficaram em restart loop por causa do wrapper experimental de quota;
