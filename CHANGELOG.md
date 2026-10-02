@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.18 — 2026-10-01
+
+- corrige o startup quebrado da HA4.7.4.17: o worker normal `_run_job` é uma função aninhada no importador e não existe no escopo global do módulo;
+- o retry de cota agora envolve o worker **no mesmo escopo local em que ele é definido**, antes de ser entregue à thread, eliminando o `NameError: name '_run_job' is not defined`;
+- o patch é auto-reparável: detecta e remove o bloco/guard defeituoso da .17 em instalações que já receberam a versão anterior e reaplica a implementação V2;
+- adiciona validação estrutural para impedir novamente alias global legado do worker;
+- mantém o staging do Unraid em `/mnt/user/Downloads/rclone-manager/archive-import`, expansão de pastas Dropbox com mídia e retomada HTTP Range dos compactados.
+
 ## 1.4.0-rc11-ha4.7.4.17 — 2026-10-01
 
 - corrige o `SyntaxError: f-string: empty expression not allowed` introduzido no patch de espera automática por cota da versão HA4.7.4.16;
