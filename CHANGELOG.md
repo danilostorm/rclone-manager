@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.21 — 2026-10-02
+
+- adiciona diagnóstico real por tarefa de compactado diretamente no painel;
+- tarefas em `error/failed` passam a exibir a **mensagem concreta do erro** no próprio card em vez de apenas `error · error`;
+- adiciona botão **📋 Detalhes / Logs** em cada tarefa, com status, fase, mensagem, erro, bytes baixados/esperados, espaço livre, staging, total remoto conhecido pelo HTTP Range, arquivos presentes no staging e eventos recentes;
+- adiciona **Copiar diagnóstico** para enviar o relatório completo sem precisar acessar SSH/Docker logs;
+- cria trilha persistente em `/data/archive-job-logs/<job>.jsonl`, limitada/rotacionada, registrando mudanças importantes e exceções do worker;
+- não registra senha, headers, cookies nem URL completa no diagnóstico;
+- jobs que já estavam em erro antes do upgrade recebem snapshot do erro atual no primeiro startup;
+- mantém o botão **Pausar**, staging do Unraid em Downloads, retomada HTTP Range e correção de 100% baixado aguardando processamento da HA4.7.4.20.
+
 ## 1.4.0-rc11-ha4.7.4.20 — 2026-10-01
 
 - adiciona **Pausar** por tarefa na fila de compactados, tanto para job em download/processamento quanto para job apenas aguardando na fila;
