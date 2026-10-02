@@ -94,7 +94,7 @@ guard = (
 lines.insert(insert_line, guard)
 src = "".join(lines)
 
-addon = f'''
+addon = r'''
 
 # RM_DRIVE_LINK_QUOTA_WAIT_V1
 # Cotas/rate limits são estado temporário, não falha definitiva. O worker
@@ -267,6 +267,7 @@ def {worker_name}(*args, **kwargs):
                 f'Cota: iniciando tentativa automática {attempt + 1}',
             )
 '''
+addon = addon.replace('{worker_name}', worker_name).replace('{job_arg!r}', repr(job_arg))
 
 src += addon
 drive_py.write_text(src, encoding="utf-8")
