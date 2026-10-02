@@ -125,6 +125,9 @@ fi
 if [ -f "$ROOT/scripts/patch-archive-partial-resume.py" ]; then
   python3 "$ROOT/scripts/patch-archive-partial-resume.py" "$TMP/source"
 fi
+if [ -f "$ROOT/scripts/patch-archive-pause-ready.py" ]; then
+  python3 "$ROOT/scripts/patch-archive-pause-ready.py" "$TMP/source"
+fi
 printf '%s\n' "$VERSION" > "$TMP/source/VERSION"
 
 # O bootstrap MultiServer usa Paramiko nas versões HA4 atuais.
