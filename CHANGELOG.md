@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.17 — 2026-10-01
+
+- corrige o `SyntaxError: f-string: empty expression not allowed` introduzido no patch de espera automática por cota da versão HA4.7.4.16;
+- o gerador do overlay de quota agora usa template raw + substituição explícita apenas para o nome do worker e argumento `job_id`, preservando os f-strings que pertencem ao código gerado;
+- nenhuma alteração adicional de comportamento: mantém staging do Unraid em `/mnt/user/Downloads/rclone-manager/archive-import`, expansão de pastas Dropbox com mídia e retry automático de quota/rate-limit;
+- o deploy continua abortando antes do recreate do container se qualquer overlay falhar no `py_compile`.
+
 ## 1.4.0-rc11-ha4.7.4.16 — 2026-10-01
 
 - no **Unraid/AEROCOOL**, move o staging de compactados para `/mnt/user/Downloads/rclone-manager/archive-import`, montado dentro do container em `/cache/archive-import`; download e extração passam a usar o espaço do share Downloads;
