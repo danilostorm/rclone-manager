@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import ast
+import re
 import sys
 import tempfile
 import py_compile
@@ -14,18 +15,42 @@ if not drive_py.exists():
     raise SystemExit("Drive Link quota wait: app/drive_links.py ausente")
 
 src = drive_py.read_text(encoding="utf-8")
-if "RM_DRIVE_LINK_QUOTA_WAIT_V1" in src:
-    print("Drive Link quota wait: já aplicado")
-    raise SystemExit(0)
+
+# HA4.7.4.18 repair:
+# .17 gerou corretamente o código, porém tentou referenciar o worker interno
+# _run_job no escopo global. Em builds HA ele é uma função aninhada dentro do
+# importador, então o módulo falhava no import com NameError.
+#
+# Torne o patch auto-reparável: se encontrar a implementação .17, remova
+# somente o bloco/guard adicionados por ela e reaplique a versão corrigida.
+marker = "# RM_DRIVE_LINK_QUOTA_WAIT_V1"
+if marker in src:
+    marker_pos = src.find("\n" + marker)
+    if marker_pos < 0:
+        marker_pos = src.find(marker)
+    if marker_pos >= 0:
+        src = src[:marker_pos].rstrip() + "\n"
+
+    src = re.sub(
+        r"(?m)^(?P<i>[ \t]*)if _rm_dl_quota_is_error\((?P<e>[A-Za-z_][A-Za-z0-9_]*)\):\n"
+        r"(?P=i)[ \t]+raise _RmDriveLinkQuotaWait\(str\((?P=e)\)\)\n",
+        "",
+        src,
+    )
 
 tree = ast.parse(src)
 
+# Mapeie pais AST para saber em qual escopo o worker vive.
+parents = {}
+for node in ast.walk(tree):
+    for child in ast.iter_child_nodes(node):
+        parents[child] = node
+
 # O worker normal é identificado estruturalmente pelo ponto em que confirma um
-# item concluído ("completed += 1"). Isto evita depender do nome histórico da
-# função, que mudou entre builds.
+# item concluído ("completed += 1"). Isto evita depender do nome histórico.
 workers = []
 for node in ast.walk(tree):
-    if not isinstance(node, ast.FunctionDef):
+    if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         continue
     hits = []
     for sub in ast.walk(node):
@@ -37,21 +62,30 @@ for node in ast.walk(tree):
         ):
             hits.append(sub)
     if hits:
-        workers.append((node, hits[0]))
+        span = getattr(node, "end_lineno", 10**9) - node.lineno
+        workers.append((span, node, hits[0]))
 
 if not workers:
     raise SystemExit("Drive Link quota wait: worker com completed += 1 não encontrado")
 
-# Prefira a função mais estreita que contém o marcador.
-workers.sort(key=lambda pair: (getattr(pair[0], "end_lineno", 10**9) - pair[0].lineno))
-worker, completed_node = workers[0]
+workers.sort(key=lambda x: x[0])
+_worker_span, worker, completed_node = workers[0]
+worker_name = worker.name
 
 if not worker.args.args:
     raise SystemExit("Drive Link quota wait: worker sem job_id")
 job_arg = worker.args.args[0].arg
-worker_name = worker.name
 
-# Ache o try/except de item que envolve o completed += 1 e captura Exception.
+# Em HA4.x esse worker é aninhado. O wrapper precisa ser criado no MESMO
+# escopo, depois da definição original e antes de ele ser entregue à Thread.
+scope = parents.get(worker)
+if not isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+    raise SystemExit(
+        "Drive Link quota wait: worker não está em escopo de função; "
+        "não é seguro aplicar wrapper"
+    )
+
+# Ache o try/except do item que envolve completed += 1.
 choices = []
 for sub in ast.walk(worker):
     if not isinstance(sub, ast.Try):
@@ -83,7 +117,9 @@ handler = choices[0][2]
 exc_name = handler.name
 
 lines = src.splitlines(keepends=True)
-insert_line = handler.lineno  # índice 0-based = linha imediatamente após except
+
+# 1) No erro do item, converta somente quota/rate-limit em sinal temporário.
+insert_line = handler.lineno
 body_indent = " " * (
     handler.body[0].col_offset if handler.body else handler.col_offset + 4
 )
@@ -92,15 +128,56 @@ guard = (
     f"{body_indent}    raise _RmDriveLinkQuotaWait(str({exc_name}))\n"
 )
 lines.insert(insert_line, guard)
+
+# A inserção acima desloca linhas posteriores. Recalcule onde termina o worker
+# pela posição textual original + 1 linha lógica de guard (na verdade 2 linhas).
+worker_end_index = worker.end_lineno + 2
+
+scope_indent = " " * worker.col_offset
+inner = scope_indent + "    "
+wrapper = (
+    "\n"
+    f"{scope_indent}# RM_DRIVE_LINK_QUOTA_WAIT_WRAPPER_V2\n"
+    f"{scope_indent}_rm_dl_quota_orig_worker = {worker_name}\n"
+    f"{scope_indent}def {worker_name}(*args, **kwargs):\n"
+    f"{inner}job_id = args[0] if args else kwargs.get({job_arg!r})\n"
+    f"{inner}attempt = 0\n"
+    f"{inner}while True:\n"
+    f"{inner}    try:\n"
+    f"{inner}        return _rm_dl_quota_orig_worker(*args, **kwargs)\n"
+    f"{inner}    except _RmDriveLinkQuotaWait as exc:\n"
+    f"{inner}        attempt += 1\n"
+    f"{inner}        delay = _rm_dl_quota_delay(attempt)\n"
+    f"{inner}        mins = max(1, int(round(delay / 60.0)))\n"
+    f"{inner}        _rm_dl_quota_update(\n"
+    f"{inner}            job_id,\n"
+    f"{inner}            'Cota temporariamente excedida; aguardando '\n"
+    f"{inner}            + str(mins)\n"
+    f"{inner}            + ' min para tentar novamente automaticamente · '\n"
+    f"{inner}            + str(exc)[:500],\n"
+    f"{inner}        )\n"
+    f"{inner}        remaining = delay\n"
+    f"{inner}        while remaining > 0:\n"
+    f"{inner}            if _rm_dl_quota_cancelled(job_id):\n"
+    f"{inner}                return None\n"
+    f"{inner}            step = min(10, remaining)\n"
+    f"{inner}            _rm_dl_quota_time.sleep(step)\n"
+    f"{inner}            remaining -= step\n"
+    f"{inner}        _rm_dl_quota_update(\n"
+    f"{inner}            job_id,\n"
+    f"{inner}            'Cota: iniciando tentativa automática ' + str(attempt + 1),\n"
+    f"{inner}        )\n"
+)
+
+lines.insert(worker_end_index, wrapper)
 src = "".join(lines)
 
-addon = r'''
+helpers = r'''
 
 # RM_DRIVE_LINK_QUOTA_WAIT_V1
-# Cotas/rate limits são estado temporário, não falha definitiva. O worker
-# normal é reiniciado a partir de completed_items após backoff, sem clique em
-# "Tentar novamente". Como o mesmo worker permanece vivo durante a espera, a
-# ordem da fila e a concorrência existente continuam respeitadas.
+# Cotas/rate limits são estado temporário, não falha definitiva. O wrapper é
+# instalado no mesmo escopo do worker aninhado; assim não existe referência
+# global inválida a _run_job.
 import os as _rm_dl_quota_os
 import sqlite3 as _rm_dl_quota_sqlite3
 import time as _rm_dl_quota_time
@@ -138,10 +215,9 @@ def _rm_dl_quota_is_error(exc):
     )
     if any(token in text for token in hard_tokens):
         return True
-    # 403 sozinho pode ser autenticação/permissão. Só trate como cota quando a
-    # própria mensagem também indicar rate/quota/limite.
     if ('403' in text) and any(
-        token in text for token in ('quota', 'rate limit', 'cota', 'limite', 'bandwidth')
+        token in text
+        for token in ('quota', 'rate limit', 'cota', 'limite', 'bandwidth')
     ):
         return True
     return False
@@ -159,12 +235,16 @@ def _rm_dl_quota_db():
 
 def _rm_dl_quota_columns(db):
     try:
-        return {str(row[1]) for row in db.execute('PRAGMA table_info(drive_link_jobs)')}
+        return {str(row[1]) for row in db.execute(
+            'PRAGMA table_info(drive_link_jobs)'
+        )}
     except Exception:
         return set()
 
 
 def _rm_dl_quota_update(job_id, message):
+    if job_id is None:
+        return
     path = _rm_dl_quota_db()
     try:
         db = _rm_dl_quota_sqlite3.connect(path, timeout=15)
@@ -200,6 +280,8 @@ def _rm_dl_quota_update(job_id, message):
 
 
 def _rm_dl_quota_cancelled(job_id):
+    if job_id is None:
+        return False
     try:
         db = _rm_dl_quota_sqlite3.connect(_rm_dl_quota_db(), timeout=10)
         try:
@@ -219,63 +301,35 @@ def _rm_dl_quota_cancelled(job_id):
 
 
 def _rm_dl_quota_delay(attempt):
-    # 1m, 2m, 5m, 10m e depois 15m. O teto curto permite recuperar sozinho
-    # assim que a cota voltar, sem martelar o provider.
     schedule = (60, 120, 300, 600, 900)
     try:
-        override = int(_rm_dl_quota_os.environ.get('RM_QUOTA_RETRY_SECONDS', '0') or 0)
+        override = int(
+            _rm_dl_quota_os.environ.get('RM_QUOTA_RETRY_SECONDS', '0') or 0
+        )
     except Exception:
         override = 0
     if override > 0:
         return max(30, min(3600, override))
-    return schedule[min(max(0, int(attempt) - 1), len(schedule) - 1)]
-
-
-_RM_DL_QUOTA_ORIG_WORKER = {worker_name}
-
-
-def {worker_name}(*args, **kwargs):
-    job_id = args[0] if args else kwargs.get({job_arg!r})
-    attempt = 0
-    while True:
-        try:
-            return _RM_DL_QUOTA_ORIG_WORKER(*args, **kwargs)
-        except _RmDriveLinkQuotaWait as exc:
-            attempt += 1
-            delay = _rm_dl_quota_delay(attempt)
-            mins = max(1, int(round(delay / 60.0)))
-            _rm_dl_quota_update(
-                job_id,
-                (
-                    f'Cota temporariamente excedida; aguardando {mins} min '
-                    f'para tentar novamente automaticamente · {str(exc)[:500]}'
-                ),
-            )
-
-            # Sono cooperativo: Cancelar/Excluir encerra a espera em poucos
-            # segundos em vez de aguardar o backoff inteiro.
-            remaining = delay
-            while remaining > 0:
-                if _rm_dl_quota_cancelled(job_id):
-                    return None
-                step = min(10, remaining)
-                _rm_dl_quota_time.sleep(step)
-                remaining -= step
-
-            _rm_dl_quota_update(
-                job_id,
-                f'Cota: iniciando tentativa automática {attempt + 1}',
-            )
+    return schedule[
+        min(max(0, int(attempt) - 1), len(schedule) - 1)
+    ]
 '''
-addon = addon.replace('{worker_name}', worker_name).replace('{job_arg!r}', repr(job_arg))
 
-src += addon
+src += helpers
 drive_py.write_text(src, encoding="utf-8")
 
 with tempfile.NamedTemporaryFile(suffix=".pyc") as f:
     py_compile.compile(str(drive_py), doraise=True, cfile=f.name)
 
+# Validação estrutural extra: o alias quebrado da .17 não pode existir no
+# escopo global; o wrapper V2 precisa estar no código final.
+check = drive_py.read_text(encoding="utf-8")
+if "\n_RM_DL_QUOTA_ORIG_WORKER =" in check:
+    raise SystemExit("Drive Link quota wait: alias global legado ainda presente")
+if "RM_DRIVE_LINK_QUOTA_WAIT_WRAPPER_V2" not in check:
+    raise SystemExit("Drive Link quota wait: wrapper V2 não foi inserido")
+
 print(
-    f"Drive Link quota wait OK: worker {worker_name} aguarda e retoma "
-    "automaticamente em 429/quota/rate-limit"
+    f"Drive Link quota wait OK: worker {worker_name} em escopo local; "
+    "429/quota/rate-limit aguardam e retomam automaticamente"
 )
