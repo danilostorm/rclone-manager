@@ -255,6 +255,13 @@ cd "$DEST"
 COMPOSE=(docker compose --env-file .env -f docker-compose.yml)
 
 if [ "$PLATFORM" = unraid ]; then
+  # Unraid may expose /root/.docker/buildx as read-only after Docker/plugin
+  # state changes. Keep Buildx activity/state in tmpfs so deploys never fail
+  # before the image build because of that host-only metadata path.
+  export BUILDX_CONFIG="${BUILDX_CONFIG:-/tmp/rclone-manager-buildx}"
+  mkdir -p "$BUILDX_CONFIG"
+  chmod 700 "$BUILDX_CONFIG" 2>/dev/null || true
+
   BASE_SERVICE="$("${COMPOSE[@]}" config --services | head -n1)"
   [ -n "$BASE_SERVICE" ] || {
     echo 'Não foi possível descobrir o serviço principal do docker-compose.' >&2
