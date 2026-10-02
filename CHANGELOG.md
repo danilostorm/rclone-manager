@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.19 — 2026-10-01
+
+- hotfix de recuperação para instalações que receberam a HA4.7.4.17/.18 e ficaram em restart loop por causa do wrapper experimental de quota;
+- remove de forma idempotente somente o overlay `RM_DRIVE_LINK_QUOTA_WAIT_V1`, o alias global quebrado de `_run_job` e eventual wrapper V2 parcial;
+- valida o `drive_links.py` reparado com `py_compile` antes do rebuild;
+- mantém integralmente as correções já entregues: staging de compactados do Unraid em `/mnt/user/Downloads/rclone-manager/archive-import`, expansão de pastas públicas do Dropbox com mídia, GC de staging e retomada HTTP Range;
+- o retry automático específico de quota/rate-limit fica temporariamente desativado nesta versão para priorizar recuperação estável do serviço.
+
 ## 1.4.0-rc11-ha4.7.4.18 — 2026-10-01
 
 - corrige o startup quebrado da HA4.7.4.17: o worker normal `_run_job` é uma função aninhada no importador e não existe no escopo global do módulo;
