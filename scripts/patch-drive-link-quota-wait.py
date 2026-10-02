@@ -79,6 +79,10 @@ job_arg = worker.args.args[0].arg
 # Em HA4.x esse worker é aninhado. O wrapper precisa ser criado no MESMO
 # escopo, depois da definição original e antes de ele ser entregue à Thread.
 scope = parents.get(worker)
+while scope is not None and not isinstance(
+    scope, (ast.FunctionDef, ast.AsyncFunctionDef)
+):
+    scope = parents.get(scope)
 if not isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
     raise SystemExit(
         "Drive Link quota wait: worker não está em escopo de função; "
@@ -127,11 +131,12 @@ guard = (
     f"{body_indent}if _rm_dl_quota_is_error({exc_name}):\n"
     f"{body_indent}    raise _RmDriveLinkQuotaWait(str({exc_name}))\n"
 )
-lines.insert(insert_line, guard)
+guard_lines = guard.splitlines(keepends=True)
+lines[insert_line:insert_line] = guard_lines
 
-# A inserção acima desloca linhas posteriores. Recalcule onde termina o worker
-# pela posição textual original + 1 linha lógica de guard (na verdade 2 linhas).
-worker_end_index = worker.end_lineno + 2
+# A inserção acima desloca as linhas posteriores pelo número real de linhas
+# físicas adicionadas.
+worker_end_index = worker.end_lineno + len(guard_lines)
 
 scope_indent = " " * worker.col_offset
 inner = scope_indent + "    "
