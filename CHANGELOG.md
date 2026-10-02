@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.22 — 2026-10-02
+
+- adiciona fallback para origens que ignoram HTTP Range e respondem HTTP 200;
+- com parcial existente, o Manager preserva o arquivo local, recebe o stream completo e valida o prefixo remoto contra o parcial antes de anexar o restante;
+- se o prefixo não corresponder, a retomada é abortada sem misturar conteúdos;
+- se a conexão cair novamente, o parcial maior continua preservado para nova tentativa;
+- a interface passa a refletir a fase de validação do prefixo antes de continuar;
+- sem suporte a Range, a origem ainda precisa retransmitir o prefixo já baixado; o ganho é preservar o arquivo local com segurança, não reduzir banda;
+- mantém diagnóstico por tarefa, pausa individual, staging do Unraid em Downloads e retomada 206 quando a origem suporta Range.
+
 ## 1.4.0-rc11-ha4.7.4.21 — 2026-10-02
 
 - adiciona diagnóstico real por tarefa de compactado diretamente no painel;
