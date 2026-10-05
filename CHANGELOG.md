@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.25 — 2026-10-04
+
+- corrige o deploy no Unraid quando `/boot` está montado como somente leitura;
+- se não for possível atualizar o arquivo persistido do MultiServer Agent em `/boot/config/plugins/...`, o deploy agora mostra aviso e continua;
+- o container principal não é mais considerado falha só porque o plugin persistido em `/boot` não pôde ser sobrescrito;
+- mantém o limite de 2000 links por envio e todas as correções anteriores.
+
 ## 1.4.0-rc11-ha4.7.4.24 — 2026-10-04
 
 - aumenta o limite de importação de links de **250 para 2000 por envio**;
