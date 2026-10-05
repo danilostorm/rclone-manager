@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0-rc11-ha4.7.4.24 — 2026-10-04
+
+- aumenta o limite de importação de links de **250 para 2000 por envio**;
+- alinha validação da interface, limites de seleção e validações do backend para evitar o caso em que a tela aceita e a API recusa (ou vice-versa);
+- mantém o limite interno de normalização em 2000 itens, evitando crescimento sem controle;
+- não altera o preview de itens do gerenciador nem limites sem relação com importação de links.
+
 ## 1.4.0-rc11-ha4.7.4.23 — 2026-10-02
 
 - corrige deploy no Unraid quando o Buildx não consegue atualizar `/root/.docker/buildx/activity` por filesystem read-only;
