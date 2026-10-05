@@ -92,6 +92,9 @@ fi
 [ -f "$TMP/source/requirements.txt" ] || { echo 'Fonte inválida: requirements.txt ausente.' >&2; exit 1; }
 
 python3 "$ROOT/scripts/patch-git-source.py" "$TMP/source" "$VERSION"
+if [ -f "$ROOT/scripts/patch-link-submit-limit.py" ]; then
+  python3 "$ROOT/scripts/patch-link-submit-limit.py" "$TMP/source"
+fi
 if [ -f "$ROOT/scripts/patch-dropbox-media-folders.py" ]; then
   python3 "$ROOT/scripts/patch-dropbox-media-folders.py" "$TMP/source"
 fi
