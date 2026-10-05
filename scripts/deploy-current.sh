@@ -16,6 +16,9 @@ if [ -f "$DEST/app/app.py" ]; then
   if [ -f "$ROOT/scripts/patch-responsive-layout.py" ]; then
     python3 "$ROOT/scripts/patch-responsive-layout.py" "$DEST"
   fi
+  if [ -f "$ROOT/scripts/patch-link-submit-limit.py" ]; then
+    python3 "$ROOT/scripts/patch-link-submit-limit.py" "$DEST"
+  fi
   if [ -f "$ROOT/scripts/patch-api-layout.py" ]; then
     python3 "$ROOT/scripts/patch-api-layout.py" "$DEST"
   fi
