@@ -300,11 +300,14 @@ if [ "$STATUS" != healthy ]; then
 fi
 
 if [ "$PLATFORM" = unraid ] && [ -f /boot/config/plugins/rclone-manager-multiserver-agent/agent.py ] && [ -f "$DEST/agent/agent.py" ]; then
-  cp -f "$DEST/agent/agent.py" /boot/config/plugins/rclone-manager-multiserver-agent/agent.py
-  pkill -f '/boot/config/plugins/rclone-manager-multiserver-agent/agent.py' 2>/dev/null || true
-  sleep 1
-  [ ! -f /boot/config/plugins/rclone-manager-multiserver-agent/start.sh ] || \
-    bash /boot/config/plugins/rclone-manager-multiserver-agent/start.sh || true
+  if cp -f "$DEST/agent/agent.py" /boot/config/plugins/rclone-manager-multiserver-agent/agent.py 2>/dev/null; then
+    pkill -f '/boot/config/plugins/rclone-manager-multiserver-agent/agent.py' 2>/dev/null || true
+    sleep 1
+    [ ! -f /boot/config/plugins/rclone-manager-multiserver-agent/start.sh ] || \
+      bash /boot/config/plugins/rclone-manager-multiserver-agent/start.sh || true
+  else
+    echo "AVISO: /boot está somente leitura; não foi possível atualizar o MultiServer Agent persistido. O container principal já foi atualizado e continuará funcionando." >&2
+  fi
 elif systemctl list-unit-files 2>/dev/null | grep -q '^rclone-manager-multiserver-agent.service' && [ -f "$DEST/agent/agent.py" ]; then
   install -D -m 755 "$DEST/agent/agent.py" /opt/rclone-manager-multiserver-agent/agent.py
   systemctl restart rclone-manager-multiserver-agent
