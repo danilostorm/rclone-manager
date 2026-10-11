@@ -26,9 +26,9 @@ from urllib.request import Request, urlopen
 PARENT = Path("/media-union")
 ALLOWED_SOURCE = Path("/mnt/rclone-manager-remotes")
 AGENT_DEFAULT = Path("/boot/config/plugins/rclone-manager-multiserver-agent")
-INTERVAL = 90
-FAILURE_THRESHOLD = 2
-COOLDOWN = 600
+INTERVAL = 12 * 60 * 60  # Two regular checks per 24 hours
+FAILURE_THRESHOLD = 1  # A single confirmed local mismatch can be recovered
+COOLDOWN = 12 * 60 * 60
 
 SAMPLE_CODE = """
 import json, os, sys
@@ -419,7 +419,7 @@ def main():
         emit("INFO", f"watchdog iniciado ({args.platform}), intervalo {max(30,args.interval)}s")
         while True:
             try:
-                probe_once(args.platform, repair=True, state_dir=root, threshold=max(2,args.threshold))
+                probe_once(args.platform, repair=True, state_dir=root, threshold=max(1,args.threshold))
             except Exception as exc:
                 emit("ERROR", f"ciclo não concluído: {type(exc).__name__}: {str(exc)[:150]}")
             time.sleep(max(30, args.interval))
