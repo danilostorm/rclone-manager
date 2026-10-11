@@ -135,6 +135,37 @@ def read_agent_settings(platform):
             break
         except OSError:
             continue
+    # On VPS/Oracle historical installs may supply values only through the
+    # systemd EnvironmentFile or the running Agent process environment.
+    if platform != "unraid" and (not values.get("MS_AGENT_TOKEN") or not values.get("MS_STATE_DIR")):
+        svc = "rclone-manager-multiserver-agent.service"
+        env_path = cmd(["systemctl", "show", "-p", "EnvironmentFiles", "--value", svc], 5)
+        if env_path and env_path.returncode == 0:
+            for raw in env_path.stdout.split():
+                candidate = Path(raw.strip().strip('"').split("(", 1)[0])
+                if not candidate.is_file():
+                    continue
+                try:
+                    for line in candidate.read_text(encoding="utf-8").splitlines():
+                        if "=" in line and not line.strip().startswith("#"):
+                            k, v = line.split("=", 1)
+                            if k.strip() in {"MS_AGENT_TOKEN", "MS_PORT", "MS_BIND", "MS_STATE_DIR"}:
+                                values.setdefault(k.strip(), v.strip().strip("'\\\""))
+                except OSError:
+                    pass
+        pid = cmd(["systemctl", "show", "-p", "MainPID", "--value", svc], 5)
+        if pid and pid.returncode == 0 and pid.stdout.strip().isdigit():
+            try:
+                raw_env = (Path("/proc") / pid.stdout.strip() / "environ").read_bytes()
+                for kv in raw_env.split(b"\\0"):
+                    if b"=" not in kv:
+                        continue
+                    key, val = kv.split(b"=", 1)
+                    k = key.decode("ascii", errors="ignore")
+                    if k in {"MS_AGENT_TOKEN", "MS_PORT", "MS_BIND", "MS_STATE_DIR"}:
+                        values.setdefault(k, val.decode("utf-8", errors="replace"))
+            except OSError:
+                pass
     if values.get("MS_STATE_DIR"):
         state = Path(values["MS_STATE_DIR"]) / "state.json"
     return state, values
