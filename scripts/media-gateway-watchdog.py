@@ -308,6 +308,9 @@ def probe_once(platform, repair=False, state_dir=None, threshold=FAILURE_THRESHO
         count += 1
         slug = entry["slug"]
         selected = saved.get(slug, {}) if isinstance(saved.get(slug), dict) else {}
+        # An HA backend switch invalidates the old failure counter.
+        if selected.get("backend_id") != entry["backend_id"]:
+            selected = {"backend_id": entry["backend_id"], "failures": 0}
         ok, why = healthy(entry)
 
         if ok is True:
