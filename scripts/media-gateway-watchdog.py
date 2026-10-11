@@ -157,7 +157,7 @@ def read_agent_settings(platform):
         if pid and pid.returncode == 0 and pid.stdout.strip().isdigit():
             try:
                 raw_env = (Path("/proc") / pid.stdout.strip() / "environ").read_bytes()
-                for kv in raw_env.split(b"\\0"):
+                for kv in raw_env.split(b"\0"):
                     if b"=" not in kv:
                         continue
                     key, val = kv.split(b"=", 1)
