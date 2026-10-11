@@ -17,6 +17,7 @@ MODE="--check"
 
 command -v python3 >/dev/null || { echo "Python 3 não encontrado." >&2; exit 1; }
 python3 -m py_compile "$MAIN"
+python3 "$ROOT/scripts/test-media-gateway-watchdog.py"
 
 echo "===== WATCHDOG / $PLATFORM ====="
 python3 "$MAIN" --platform "$PLATFORM" --once
