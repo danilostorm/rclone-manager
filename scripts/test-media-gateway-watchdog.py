@@ -21,6 +21,10 @@ class WatchdogTests(unittest.TestCase):
             "dest": Path("/media-union/stormflix"),
         }
 
+    def test_two_checks_per_day(self):
+        self.assertEqual(watch.INTERVAL, 12 * 60 * 60)
+        self.assertEqual(watch.FAILURE_THRESHOLD, 1)
+
     def test_filter_rejects_unmanaged_paths(self):
         state = {"libraries": {
             "valid": {"backend_id": "x", "stable_path": "/media-union/stormflix"},
