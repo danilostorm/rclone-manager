@@ -48,7 +48,7 @@ done
 [ -f "$MAIN" ] || exit 0
 STATE="/mnt/user/appdata/rclone-manager/data/media-gateway-watchdog"
 mkdir -p "$STATE"
-exec /usr/bin/python3 "$MAIN" --platform unraid --loop --repair --interval 90 \
+exec /usr/bin/python3 "$MAIN" --platform unraid --loop --repair --interval 43200 --threshold 1 \
   >> "$STATE/watchdog.log" 2>&1
 SH
   chmod 700 "$STARTER"
@@ -66,8 +66,17 @@ SH
 GOHOOK
   fi
 
-  # Only our new background watcher is started. None of the media services
-  # or existing FUSE mounts is restarted or unmounted at installation.
+  # Replace only an earlier watchdog instance (possibly running every 90s).
+  # Do not touch Manager, Plex, Jellyfin, rclone FUSE, or the Agent.
+  OLD_PIDS="$(pgrep -f '^/usr/bin/python3 /mnt/user/appdata/rclone-manager-src/scripts/media-gateway-watchdog.py --platform unraid --loop --repair' || true)"
+  if [ -n "$OLD_PIDS" ]; then
+    while IFS= read -r pid; do
+      [ -n "$pid" ] || continue
+      kill -TERM "$pid" 2>/dev/null || true
+    done <<< "$OLD_PIDS"
+    sleep 2
+  fi
+
   bash "$STARTER" </dev/null >/dev/null 2>&1 &
   echo "Watchdog instalado no Unraid. Inicialização persistida em $GO."
   echo "Log: /mnt/user/appdata/rclone-manager/data/media-gateway-watchdog/watchdog.log"
@@ -87,7 +96,7 @@ After=network-online.target docker.service
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/bin/python3 $MAIN --platform $PLATFORM --loop --repair --interval 90
+ExecStart=/usr/bin/python3 $MAIN --platform $PLATFORM --loop --repair --interval 43200 --threshold 1
 Restart=always
 RestartSec=15
 NoNewPrivileges=true
@@ -96,10 +105,12 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 SERVICE
   systemctl daemon-reload
-  systemctl enable --now rclone-manager-media-watchdog.service
+  systemctl enable rclone-manager-media-watchdog.service
+  # Ensure an existing service stops using the old 90-second interval.
+  systemctl restart rclone-manager-media-watchdog.service
   echo "Watchdog instalado no systemd ($PLATFORM)."
   echo "Estado: systemctl status rclone-manager-media-watchdog --no-pager"
   echo "Logs: journalctl -u rclone-manager-media-watchdog -n 60 --no-pager"
 fi
 
-echo "A recuperação só ocorre após 2 verificações ruins; cooldown 10 minutos."
+echo "Frequência: 2 verificações por dia (12h). Uma falha confirmada é recuperada na própria verificação, com proteção contra tentativas repetidas."
