@@ -6,8 +6,10 @@ A verificação lê as bibliotecas e backends do MultiServer Agent em cada host.
 Para backend local, só recupera se a origem FUSE estiver montada e tiver
 pastas/arquivos reais; se a origem estiver vazia, não altera nada.
 Para backend SFTP/SSH, pede recuperação ao Agent e não força binds locais.
-A recuperação depende de 2 verificações consecutivas degradadas, a cada 90s,
-com espera mínima de 10 minutos entre tentativas de recuperação da mesma biblioteca.
+A rotina faz 2 verificações por dia, com intervalo de 12 horas.
+Se uma verificação encontrar uma falha confirmada, tenta recuperar o Gateway
+naquele ciclo; o watchdog não fica fazendo novas sondagens durante o intervalo.
+Se o servidor reiniciar, ocorre uma verificação inicial ao subir o serviço.
 
 ## AEROCOOL (Unraid)
 
@@ -41,6 +43,8 @@ o watchdog não provoca esse redeploy.
 ## Observações
 
 - Não apaga arquivos, não elimina Media Pools nem altera bibliotecas Plex.
+- O intervalo é de 43200 segundos (12 horas). Pode levar até 12 horas para
+  detectar uma falha ocorrida após a última verificação.
 - Só tenta recuperar Gateway local quando a origem verdadeira foi verificada.
 - Não soluciona ainda a causa interna de database is locked no SQLite.
   O monitor independente continua operando se uma thread interna morrer.
